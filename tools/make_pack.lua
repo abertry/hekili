@@ -218,6 +218,7 @@ end
 
 -- The versions a class file's RegisterPack blocks carry, by pack name.
 local function versions(src)
+    src = src:gsub("\r\n", "\n")
     local out = {}
     for name, version in src:gmatch('spec:RegisterPack%(\n    "([^"\n]+)",\n    (%d+),') do
         out[name] = tonumber(version)
@@ -358,7 +359,10 @@ local function load(class, root, from)
     local old = versions(from.src or slurp(classFile(class)))
     local def = dofile(root .. "packs.lua")
     local files = {}
-    local pipe = assert(io.popen("ls " .. root .. " 2>/dev/null"))
+    local list = package.config:sub(1, 1) == "\\"
+        and ('dir /b "' .. root:gsub("/", "\\") .. '" 2>NUL')
+        or ("ls " .. root .. " 2>/dev/null")
+    local pipe = assert(io.popen(list))
     for file in pipe:lines() do
         if file:match("%.simc$") then
             files[file] = true
@@ -374,7 +378,8 @@ local function load(class, root, from)
         files[file] = nil
         local desc, simc, head = {}, {}, true
         local path = root .. file
-        for line in slurp(path):gmatch("([^\n]*)\n?") do
+        local source = slurp(path):gsub("\r\n", "\n")
+        for line in source:gmatch("([^\n]*)\n?") do
             head = head and line:sub(1, 1) == "#"
             if head then
                 desc[#desc + 1] = line:gsub("^#%s?", ""):gsub("%s+$", "")
@@ -520,6 +525,10 @@ end
 -- Rewrites src's RegisterPack blocks (one contiguous run of them, in StyLua's layout) as packs, in order. Returns
 -- the new source and { { name, "added" | "updated" | "removed" | "unchanged" }, ... }; errors on anything else.
 local function sync(src, packs)
+    local crlf = src:find("\r\n", 1, true) ~= nil
+    if crlf then
+        src = src:gsub("\r\n", "\n")
+    end
     local old, first, last = {}, nil, nil
     local at = src:find("RegisterPack(", 1, true)
     if not at then
@@ -553,7 +562,11 @@ local function sync(src, packs)
             report[#report + 1] = { name, "removed" }
         end
     end
-    return src:sub(1, first - 1) .. table.concat(new) .. src:sub(last + 1), report
+    local out = src:sub(1, first - 1) .. table.concat(new) .. src:sub(last + 1)
+    if crlf then
+        out = out:gsub("\n", "\r\n")
+    end
+    return out, report
 end
 
 -- sync with the class file's own versions; a pack that differs then gets its next version (see bump) for `today`

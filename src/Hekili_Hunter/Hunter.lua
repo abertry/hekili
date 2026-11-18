@@ -1189,8 +1189,10 @@ spec:RegisterAbilities({
     -- A 6 s channel, a tick a second.
     volley = {
         id = 1510,
+        school = "arcane",
         copy = rest(VOLLEY),
         cast = 6,
+        fixedCast = true,
         channeled = true,
         tick_time = 1,
         cooldown = 0,

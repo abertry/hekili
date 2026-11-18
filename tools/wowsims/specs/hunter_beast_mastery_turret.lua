@@ -34,12 +34,20 @@ return {
         multi_shot = { 8, 35 },
         serpent_sting = { 8, 35 },
     },
-    -- below 25 (Summon Hawk's learn level) the HHA window never reaches Arcane Shot (its first step is a hawk): wowsims's
-    -- own non-hawk line (`cast arcane_shot if $use_arcane_shot and not $use_summon_hawk`), keyed on Summon Hawk being
-    -- known, not on the setting (R41: a real rotation shot, silent at 60; carried from the retired weave recipe); its
-    -- range gate written in (rule 19 reaches APL lines only)
-    leveling = { "arcane_shot,if=!action.summon_hawk.known&target.outside8" },
-    -- L1059 (owner): no pet out, call it; the pet dead, revive it: both lead the lists (levelingFirst puts them first
-    -- in precombat and default). A Lone Wolf Hunter wants none out.
+    guard = {
+        hunters_mark = "active_enemies=1",
+        multi_shot = "active_enemies>1",
+        serpent_sting = 'active_enemies=1&target.creature_type!="elemental"&target.creature_type!="mechanical"',
+    },
+    extra = {
+        { before = "multi_shot", line = "summon_hawk,if=active_enemies=1&action.summon_hawk.known&pet.hawk.count<2" },
+        {
+            before = "multi_shot",
+            line = "aimed_shot,if=active_enemies=1&target.outside8&!moving",
+        },
+        { before = "call_action_list", line = "volley,if=active_enemies>1&target.outside8&!moving" },
+        { before = "call_action_list", line = "arcane_shot,if=target.outside8" },
+    },
+    leveling = {},
     levelingFirst = { "call_pet,if=!pet_out&!pet.dead&!talent.lone_wolf.enabled", "revive_pet,if=pet.dead" },
 }

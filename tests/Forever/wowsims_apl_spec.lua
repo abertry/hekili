@@ -1735,7 +1735,7 @@ describe("the wowsims APL translator", function()
 
     it("opens the Rogue Combat recipe with Blood Fury, then Adrenaline Rush once it is cast (rule 14)", function()
         local f = assert(io.open("src/Hekili_Rogue/APLs/Combat (wowsims.com).simc", "rb"))
-        local simc = f:read("*a")
+        local simc = f:read("*a"):gsub("\r\n", "\n")
         f:close()
         local bf, ar = simc:match( -- consecutive lines
             "\nactions%+=/blood_fury,use_off_gcd=1,if=([^\n]*)\nactions%+=/adrenaline_rush,if=([^\n]*)\n"
@@ -3025,7 +3025,10 @@ describe("the wowsims APL translator's auto-attack clocks", function()
         -- the recipe's open line wants its raptor_strike; its leveling line (BM's Arcane Shot below Summon Hawk, Task 19)
         -- is not one of the three timing lines under test, nor is its `guard` (a move entry of the full APL; CN12 refuses
         -- a guard key that names nothing), nor are its leading pet lines (levelingFirst, L1059)
-        local lines = setmetatable({ extra = {}, leveling = {}, levelingFirst = {}, guard = {} }, { __index = r })
+        local lines = setmetatable(
+            { condition = {}, extra = {}, leveling = {}, levelingFirst = {}, guard = {} },
+            { __index = r }
+        )
         local text = apl.translate(rotation, apl.context(set, lines, nil, player))
         assert.are.equal(
             table.concat({
