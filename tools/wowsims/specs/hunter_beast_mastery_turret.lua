@@ -34,6 +34,7 @@ return {
         multi_shot = { 8, 35 },
         serpent_sting = { 8, 35 },
     },
+    condition = { multi_shot = "target.outside8" },
     guard = {
         hunters_mark = "active_enemies=1",
         multi_shot = "active_enemies>1",
@@ -45,8 +46,8 @@ return {
             before = "multi_shot",
             line = "aimed_shot,if=active_enemies=1&target.outside8&!moving",
         },
-        { before = "call_action_list", line = "volley,if=active_enemies>1&target.outside8&!moving" },
-        { before = "call_action_list", line = "arcane_shot,if=target.outside8" },
+        { after = "multi_shot", line = "volley,if=active_enemies>1&target.outside8&!moving" },
+        { after = "volley", line = "arcane_shot,if=target.outside8" },
     },
     leveling = {},
     levelingFirst = { "call_pet,if=!pet_out&!pet.dead&!talent.lone_wolf.enabled", "revive_pet,if=pet.dead" },

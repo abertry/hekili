@@ -82,8 +82,9 @@
 --    and its `levelingFirst` lines put before them (a form the sim starts in, which the APL's own lines would never let a trailing line reach):
 --    the `levelingFirst` lines lead a non-empty precombat list too (its pre-pull cast would show before the form):
 --    `leveling` lines are silent at 60, `levelingFirst` lines whenever their form is up. Each recipe `extra`
---    ({ before = action, line = text }, content outside wowsims's model) goes just before the first `actions` line of
---    `before`, its last with `last = true` (an error when there is none). The recipe's `settings` ({ [key] = {
+--    ({ before = action, line = text } or { after = action, line = text }, content outside wowsims's model) goes just
+--    before the first `actions` line of `before`, its last with `last = true`, or just after the last line of `after`
+--    (an error when the selected anchor has no line). The recipe's `settings` ({ [key] = {
 --    default = bool, desc = text } }) are pack settings like an ON/OFF group's: a line reads one as `settings.<key>`, and the header lists each one read.
 --    The recipe's `prepullSkip` ({ action key, ... }: an owner ruling against a wowsims pre-pull cast) omits that
 --    action's precombat lines, listed (an error when there is none).
@@ -3146,21 +3147,25 @@ function M.translate(rotation, c)
         end
     end
     for _, x in ipairs(c.extra) do
+        local anchor = x.before or x.after
         local at
         for i, body in ipairs(byName.default) do
-            if body:match("^[%w_]+") == x.before then
+            if body:match("^[%w_]+") == anchor then
                 at = i
                 -- a sequence's member (recipe `sequences`) is part of its sequence's line: the extra goes before that
                 while c.sequences and at > 1 and byName.default[at]:find(",if=window%.[%w_]+%.next%.") do
                     at = at - 1
                 end
-                if not x.last then
+                if not x.after and not x.last then
                     break
                 end
             end
         end
         if not at then
-            error("extra: no " .. x.before .. " line in actions", 0)
+            error("extra: no " .. tostring(anchor) .. " line in actions", 0)
+        end
+        if x.after then
+            at = at + 1
         end
         table.insert(byName.default, at, x.line)
         table.insert(origin.default, at, false)
