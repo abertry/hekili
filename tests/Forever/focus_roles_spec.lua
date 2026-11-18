@@ -16,9 +16,8 @@ end
 local ROGUE = { "garrote=1", "rupture=1", "slice_and_dice=1" } -- Slice and Dice and Rupture sort by soonest (Rupture first since the re-pin)
 -- the melee-weave strikes (Mongoose Bite, Strider Kick, Immolation Trap, Wing Clip) rotational (the user)
 -- (R51: each move arm is its own line where its move is called, at its source line's tier: the re-pin's Hunter's Mark
--- leads, Raptor Strike's and Serpent Sting's in-range lines, then the arms: Beast Mastery and Survival walk in (walk_in
--- #1 reaches Serpent Sting) before the weave (#6: Raptor Strike; #7, the move back: Serpent Sting); Marksmanship's walk
--- in is never called)
+-- leads, Raptor Strike's and Serpent Sting's in-range lines, then the arms: Survival walks in (walk_in #1 reaches
+-- Serpent Sting) before the weave (#6: Raptor Strike; #7, the move back: Serpent Sting))
 local HUNTER = {
     "hunters_mark=2",
     "raptor_strike=1",
@@ -27,8 +26,6 @@ local HUNTER = {
     "serpent_sting=1",
     "raptor_strike=1",
 }
--- 0.7 re-pin: the weave is move #4 (the shots' move back) then #5 (the strikes), so the strike line comes last
-local HUNTER_MM = { "hunters_mark=2", "raptor_strike=1", "serpent_sting=1", "serpent_sting=1", "raptor_strike=1" }
 
 -- file order of the generated simc: the Banes, Searing Pain's Demonic Brand upkeep and the curses at 2, Soul Fire on Decimation at 1
 local WARLOCK_DEMO = {
@@ -67,8 +64,6 @@ local PACKS = {
     ["Rogue/APLs/Assassination"] = ROGUE,
     ["Rogue/APLs/Combat"] = { "riposte=1", "garrote=1", "rupture=1", "slice_and_dice=1" }, -- Riposte leads (owner R70)
     ["Rogue/APLs/Subtlety"] = ROGUE,
-    ["Hunter/APLs/Beast Mastery"] = HUNTER,
-    ["Hunter/APLs/Marksmanship"] = HUNTER_MM,
     ["Hunter/APLs/Survival"] = HUNTER,
     -- the non-weave builds (ledger L661): the Turret list has no strikes; Survival Melee's Raptor Strike leads, its
     -- move arm follows the Mark, and the walk in's Serpent Sting is the group's (file order)
@@ -101,9 +96,38 @@ local PACKS = {
     },
     ["Druid/APLs/Balance"] = { "moonfire=2", "insect_swarm=2", "starfire=1" },
     -- re-pin e2842f0a78 (R66): the adaptive list's order; Claw's one line is wowsims's "Claw can replace Shred" fallback
-    ["Druid/APLs/Feral"] = { "shred=1", "rip=2", "rake=2", "claw=1" },
+    -- re-pin e4ef929e54: the 2/3-target lists keep their Rake upkeep (2); single_target's two Claw lines share the
+    -- fallback's condition (the recipe's `(A)|(B)`), both 1
+    ["Druid/APLs/Feral"] = {
+        "rake=2",
+        "rake=2",
+        "rake=2",
+        "rake=2",
+        "shred=1",
+        "rip=2",
+        "rake=2",
+        "claw=1",
+        "claw=1",
+        "rake=2",
+        "rake=2",
+    },
     -- re-pin e5a9cd2a2d: the adaptive list puts the upkeep Lacerate and Roar first, the rage dump (Maul) last
-    ["Druid/APLs/Guardian"] = { "lacerate=2", "demoralizing_roar=2", "lacerate=2", "maul=1", "maul=2" },
+    -- re-pin e4ef929e54: the leveling Maul (2) heads the default list; the 2-target, 3-target and single-target groups
+    -- each keep their upkeep (2) and their Maul (2: a rage dump as Heroic Strike, always tier 2; Fable for the owner
+    -- 2026-11-17, L1302)
+    ["Druid/APLs/Guardian"] = {
+        "maul=2",
+        "demoralizing_roar=2",
+        "lacerate=2",
+        "maul=2",
+        "maul=2",
+        "demoralizing_roar=2",
+        "lacerate=2",
+        "lacerate=2",
+        "demoralizing_roar=2",
+        "lacerate=2",
+        "maul=2",
+    },
     ["Mage/APLs/Arcane"] = { "arcane_missiles=1" },
     -- Frost (new pack): Cone of Cold on five Winter's Chill stacks and Ice Lance on a Fingers of Frost charge 1, Ice
     -- Barrier kept for Frigid Power 2 (the AoE list's too); Cold Snap a cooldown (none)

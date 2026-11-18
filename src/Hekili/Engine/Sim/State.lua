@@ -98,6 +98,16 @@ state.nearCost = false
 state.nearAction = false
 state.nearPre = 0 -- TimeToReady: the running GCD's remains the near-cost window opens after (L628)
 state.nearHoldFrom = 0 -- Core: the held pick's nearPre
+-- (windows design v6 §3.6, ruling 36) a strict start test's member after the first: the gates its `sequence_ignore`
+-- names (a set: form, noform, buff, nobuff) that IsUsable / TimeToReady skip for that one judgement; false otherwise
+state.gateSkip = false
+-- (windows design v6 §7, rulings 9, 25) 1 while a sequence's generated line is judged (sequences run in Primary and
+-- AOE only): it skips the "toggle shown separately" test; 0 otherwise. An off toggle still disables. IsDisabled neither
+-- reads nor writes its cache for a bypass.
+state.seqBypass = 0
+-- (ruling 36) `ready()` inside an ability's sequence_ready: the start test's accessor during that call, false otherwise
+-- (a permanent key: setting an absent key, even to nil, grows the table in Lua 5.1)
+state.ready = false
 state.delayMin = 0
 state.delayMax = 15
 
@@ -514,20 +524,26 @@ state.select = select
 -- `stat.<field>` (stat.crit) is the sim's stat table, as upstream; calling it, stat(name, arg), is the client's stat
 -- API of that name (mt_stat's __call below). In a `now` handler `stat` is only the plain function.
 
---- A cost `c` between 0 and 1 of resource state `res`, as power: that fraction of the pool's base power, floored, when
---- the reset's UnitPowerMax read carried one (`res.base`: the pack's declared or the one learned from the client's
---- cost read; nil until then), else of its `modmax` (Hekili's). Allocates nothing.
+--- A cost `c` between 0 and 1 of resource state `res`, as power: that fraction of the pool's base power to the nearest
+--- whole, a half up (the client's percent-of-base price; the belief's `nearest`, Game/State/Families/Casts.lua, is the
+--- same expression), when the reset's UnitPowerMax read carried one (`res.base`: the pack's declared or the one learned
+--- from the client's cost read; nil until then), else of its `modmax` (Hekili's). Allocates nothing.
 function ns.FractionCost( c, res )
     local b = rawget( res, "base" )
-    if b then return math.floor( c * b + 1e-6 ) end
+    if b then return math.floor( c * b + 0.5 + 1e-6 ) end
     return c * res.modmax
 end
 
 --- The points declared cost `c` of resource state `res` costs `ability`: a fraction of base power (ns.FractionCost)
 --- at any magnitude when the ability declares `spendBase = true`, else when 0 < c < 1 (Hekili's reading), else `c`
---- itself. The one rule in both layers (the belief's I.BaseCostOf, Game/State/Families/Casts.lua). Allocates nothing.
+--- itself. The one rule in both layers (the belief's I.BaseCostOf, Game/State/Families/Casts.lua). A fraction's whole
+--- price then takes the cost modifiers in scope (Engine/Schema/Races.lua M.Apply, which left the fraction as declared),
+--- as the belief's I.CostOf does. Allocates nothing.
 function ns.SpendPoints( c, res, ability )
-    if c > 0 and ( c < 1 or ability and rawget( ability, "spendBase" ) ) then return ns.FractionCost( c, res ) end
+    if c > 0 and ( c < 1 or ability and rawget( ability, "spendBase" ) ) then
+        c = ns.FractionCost( c, res )
+        if ability then return ns.costMods.Apply( c, ability, true ) end
+    end
     return c
 end
 -- (audit E8) Through the facade: knownRank(ids) is the highest rank of the list the spellbook knows (0 none; memoised
@@ -1608,16 +1624,22 @@ state.rawSpend = rawSpend
 
 -- Rotation windows, the core's side (re-pin design §3a, decision 11): the forecast only. `state.window.<name>` answers
 -- `.up`, `.remains` and `.elapsed` (0 when down), `.step` and `.next.<ability key>` (the due step of an up window) at
--- query_time. Every reset copies the belief's windows from Facade.Window (CopyWindows) and clears the per-line memory,
--- so nothing a cycle changes (an `open_window`/`close_window` line, Core.lua; a handler's `openWindow`/`closeWindow`; a
--- simulated cast's step, WindowCast from RunHandler) survives it or reaches the belief. The edge and step rules are the
--- belief's (Game/State/Families/Windows.lua), written again here: never one shared function. Built at
--- SpecializationChanged (BuildWindows); nothing allocated per cycle.
+-- query_time. Every reset copies the belief's windows from Facade.Window (CopyWindows): a Lua window by its name, an
+-- APL window (windows design v6 §4.1, the active pack's `windows` list, Scripts.lua CheckWindows) by the key of the
+-- display being walked. Nothing a cycle changes (an `open_window`/`close_window` line, Core.lua; a handler's
+-- `openWindow`/`closeWindow`; a simulated cast's step, WindowCast from RunHandler) survives it; only Core.lua's slot-1
+-- lines at now send their changes to an APL window's key (VS.WindowOp). The edge and step rules are the belief's
+-- (Game/State/Families/Windows.lua), written again here: never one shared function. Built at SpecializationChanged
+-- and when the active pack's APL windows change (BuildWindows); nothing allocated per cycle.
 local WIN = {
     n = 0, byKey = {}, tables = {}, of = {}, -- of: a window's table (or its `next` table) -> its index
     dur = {}, maxDur = {}, maxRef = {}, refresh = {}, steps = {}, nSteps = {}, lastAt = {}, loop = {}, dev = {}, strict = {},
+    park = {}, -- an APL plain sequence: past its last step it stays up at step nSteps + 1 (`done`, §6)
     up = {}, openedAt = {}, expiresAt = {}, refreshes = {}, step = {},
-    lineLast = {}, -- by an open_window line's script ID: its last result in this cycle (a held condition opens once)
+    name = {}, keys = {}, key = {}, -- by index: the window's name; an APL window's keys by display, and this pass's key
+    fired = {}, -- by a window line's script ID: it changed the copy in this slot (the per-slot mark, §4.3, ruling 20)
+    slotOpened = {}, slotClosed = {}, -- by index: a line opened / closed the copy in this slot (the flapping pair, L1205)
+    send = false, -- the slot walking now sends its changes (Core.lua's slot 1; never the alternatives probe)
 }
 
 do
@@ -1632,16 +1654,22 @@ do
         WIN.up[ w ], WIN.openedAt[ w ], WIN.expiresAt[ w ], WIN.refreshes[ w ], WIN.step[ w ] = false, 0, 0, 0, 0
     end
 
-    -- `dur`: a line's duration=, else nil for the registered length (seconds, math.huge for "combat", or its function
+    -- `dur`: a handler's duration, else nil for the registered length (seconds, math.huge for "combat", or its function
     -- run under state now, at this open or counted refresh; a non-positive or non-number answer opens nothing).
+    -- True when the copy changed (a fresh open or a counted refresh).
     local function open( w, t, dur, refresh )
         if WIN.up[ w ] and WIN.expiresAt[ w ] <= t then close( w ) end -- expired: a fresh open
         local fresh = not WIN.up[ w ]
-        if not fresh and not ( refresh and ( WIN.maxRef[ w ] < 0 or WIN.refreshes[ w ] < WIN.maxRef[ w ] ) ) then return end
+        if not fresh and not ( refresh and ( WIN.maxRef[ w ] < 0 or WIN.refreshes[ w ] < WIN.maxRef[ w ] ) ) then return false end
+        -- L1182: an APL window refuses a refresh once its expiry sits at the max_duration cap ("combat": always), as the
+        -- belief applies an OPEN (the oracle M.apply); a Lua window counts one there (its own edge rule, unchanged)
+        if not fresh and WIN.keys[ w ] and not ( WIN.expiresAt[ w ] < ( WIN.maxDur[ w ] > 0 and WIN.openedAt[ w ] + WIN.maxDur[ w ] or math.huge ) ) then
+            return false
+        end
         if not dur then
             dur = WIN.dur[ w ]
             if type( dur ) == "function" then dur = dur() end
-            if type( dur ) ~= "number" or not ( dur > 0 ) then return end
+            if type( dur ) ~= "number" or not ( dur > 0 ) then return false end
         end
         local e = t + dur
         if fresh then
@@ -1652,11 +1680,13 @@ do
         end
         local cap = WIN.maxDur[ w ] > 0 and WIN.openedAt[ w ] + WIN.maxDur[ w ] or e
         WIN.expiresAt[ w ] = e < cap and e or cap
+        return true
     end
 
     local function advance( w, s )
         if s < WIN.nSteps[ w ] then WIN.step[ w ] = s + 1
         elseif WIN.loop[ w ] then WIN.step[ w ] = 1
+        elseif WIN.park[ w ] then WIN.step[ w ] = WIN.nSteps[ w ] + 1
         else close( w ) end
     end
 
@@ -1667,7 +1697,8 @@ do
         elseif k == "down" then return not up
         elseif k == "remains" then return up and WIN.expiresAt[ w ] - q or 0
         elseif k == "elapsed" then return up and q - WIN.openedAt[ w ] or 0
-        elseif k == "step" then return up and WIN.step[ w ] or 0 end
+        elseif k == "step" then return up and WIN.step[ w ] or 0
+        elseif k == "done" then return up and WIN.park[ w ] and WIN.step[ w ] == WIN.nSteps[ w ] + 1 or false end
     end }
 
     local mtNext = { __index = function( t, key )
@@ -1676,60 +1707,153 @@ do
         return steps and upAt( w, state.query_time ) and steps[ WIN.step[ w ] ] == key or false
     end }
 
-    state.window = {}
+    -- A window some loaded priority declares but the active pack does not (another pack's `windows` list, compiled
+    -- before its scripts by Scripts.lua LoadScripts) reads closed; any other unknown name stays an error.
+    local closedNext = setmetatable( {}, { __index = function() return false end } )
+    local closedWindow = setmetatable( {}, { __index = function( _, k )
+        if k == "up" or k == "done" then return false elseif k == "down" then return true elseif k == "next" then return closedNext end
+        return 0
+    end } )
+    state.window = setmetatable( {}, { __index = function( _, k )
+        if scripts.declaredWindows and scripts.declaredWindows[ k ] then return closedWindow end
+    end } )
 
-    --- SpecializationChanged: one table per registered window (class.windows), reused by index. Not per cycle.
+    local function row( n, name, d )
+        WIN.byKey[ name ], WIN.name[ n ] = n, name
+        local t = WIN.tables[ n ] or setmetatable( { next = setmetatable( {}, mtNext ) }, mtWindow )
+        WIN.tables[ n ], WIN.of[ t ], WIN.of[ t.next ] = t, n, n
+        state.window[ name ] = t
+        WIN.dur[ n ], WIN.refresh[ n ] = d.duration == "combat" and math.huge or d.duration, d.refresh == true
+        WIN.maxDur[ n ], WIN.maxRef[ n ] = d.max_duration or 0, d.max_refresh or -1
+        WIN.steps[ n ], WIN.nSteps[ n ] = d.steps or false, d.steps and #d.steps or 0
+        local lastAt = {} -- ability key -> its last step position
+        for k = 1, WIN.nSteps[ n ] do lastAt[ d.steps[ k ] ] = k end
+        WIN.lastAt[ n ], WIN.loop[ n ] = lastAt, d.loop == true
+        WIN.dev[ n ], WIN.strict[ n ] = DEV[ d.on_deviation ] or STAY, d.strict == true
+        WIN.keys[ n ], WIN.key[ n ] = d.keys or false, false
+        WIN.park[ n ] = d.seq == true and not d.strict
+        close( n )
+    end
+
+    --- SpecializationChanged, and a change of the active pack's APL windows (Core.lua): one table per registered
+    --- window (class.windows), then per APL window (Scripts.lua's applied CheckWindows declarations), reused by index.
+    --- Not per cycle.
     function state:BuildWindows()
         wipe( WIN.byKey )
+        wipe( WIN.fired ) -- the old lines' marks: WindowSlot walks every key each slot (L1324)
         wipe( state.window )
         local n = 0
         for name, d in pairs( class.windows ) do
             n = n + 1
-            WIN.byKey[ name ] = n
-            local t = WIN.tables[ n ] or setmetatable( { next = setmetatable( {}, mtNext ) }, mtWindow )
-            WIN.tables[ n ], WIN.of[ t ], WIN.of[ t.next ] = t, n, n
-            state.window[ name ] = t
-            WIN.dur[ n ], WIN.refresh[ n ] = d.duration == "combat" and math.huge or d.duration, d.refresh == true
-            WIN.maxDur[ n ], WIN.maxRef[ n ] = d.max_duration or 0, d.max_refresh or -1
-            WIN.steps[ n ], WIN.nSteps[ n ] = d.steps or false, d.steps and #d.steps or 0
-            local lastAt = {} -- ability key -> its last step position
-            for k = 1, WIN.nSteps[ n ] do lastAt[ d.steps[ k ] ] = k end
-            WIN.lastAt[ n ], WIN.loop[ n ] = lastAt, d.loop == true
-            WIN.dev[ n ], WIN.strict[ n ] = DEV[ d.on_deviation ] or STAY, d.strict == true
-            close( n )
+            row( n, name, d )
+        end
+        local apl = scripts.appliedWindows
+        for k = 1, apl and #apl.decls or 0 do
+            n = n + 1
+            row( n, apl.decls[ k ].name, apl.decls[ k ] )
         end
         WIN.n = n
-        wipe( WIN.lineLast )
-    end
-
-    --- Every reset: the belief's windows (Facade.Window, the one window read), and each line's memory cleared.
-    function state.CopyWindows()
-        for name, w in pairs( WIN.byKey ) do
-            WIN.up[ w ], WIN.openedAt[ w ], WIN.expiresAt[ w ], WIN.refreshes[ w ], WIN.step[ w ] = Facade.Window( name )
+        -- every line's per-slot mark made here, so a line acting for the first time adds no key in the walk
+        for k = 1, apl and #apl.fireIDs or 0 do
+            local id = apl.fireIDs[ k ]
+            if WIN.fired[ id ] == nil then WIN.fired[ id ] = false end
         end
-        for id in pairs( WIN.lineLast ) do WIN.lineLast[ id ] = false end
     end
 
-    --- The verbs (handlers, and Core.lua's lines): open or close window `name` at query_time. `duration` (an
-    --- `open_window` line's duration=) overrides the registered one; `refresh` (its refresh=1), else the registered
-    --- `refresh`, lets an open window restart, within its caps. A close acts only on an open window.
+    --- Every reset: the belief's windows (Facade.Window, the one window read): a Lua window by name, an APL window by
+    --- the key of display `dispName` (closed when it has none).
+    function state.CopyWindows( dispName )
+        for w = 1, WIN.n do
+            local keys = WIN.keys[ w ]
+            local key = keys and keys[ dispName ] or false
+            WIN.key[ w ] = key
+            if keys and not key then
+                close( w )
+            else
+                WIN.up[ w ], WIN.openedAt[ w ], WIN.expiresAt[ w ], WIN.refreshes[ w ], WIN.step[ w ] = Facade.Window( key or WIN.name[ w ] )
+            end
+        end
+    end
+
+    --- The verbs (handlers, and Core.lua's lines): open or close window `name` at query_time, true when the copy
+    --- changed. `duration` (a handler's) overrides the registered one; `refresh`, else the registered `refresh`, lets
+    --- an open window restart, within its caps. A close acts only on an open window.
+    -- An APL window with no key in the display being walked (a sequence where Sequences is off, §7) does not exist there.
+    local function absent( w )
+        return WIN.keys[ w ] and not WIN.key[ w ]
+    end
+
     function state.openWindow( name, duration, refresh )
         local w = WIN.byKey[ name ]
-        if not w then return end
+        if not w or absent( w ) then return false end
         if refresh == nil then refresh = WIN.refresh[ w ] end
-        open( w, state.query_time, type( duration ) == "number" and duration > 0 and duration or nil, refresh )
+        return open( w, state.query_time, type( duration ) == "number" and duration > 0 and duration or nil, refresh )
     end
 
     function state.closeWindow( name )
         local w = WIN.byKey[ name ]
-        if w and upAt( w, state.query_time ) then close( w ) end
+        if w and not absent( w ) and upAt( w, state.query_time ) then
+            close( w )
+            return true
+        end
+        return false
     end
 
-    --- Core.lua's `open_window` line: its last result in this cycle (false after the reset); records the new one.
-    function state.WindowLine( scriptID, pass )
-        local was = WIN.lineLast[ scriptID ]
-        WIN.lineLast[ scriptID ] = pass
-        return was
+    --- (§6) A sequence's step on the copy: `s` (1..steps + 1) on an up stepped window; true when the copy changed.
+    function state.WindowStep( name, s )
+        local w = WIN.byKey[ name ]
+        if not w or absent( w ) or not WIN.steps[ w ] or not upAt( w, state.query_time ) or WIN.step[ w ] == s then return false end
+        WIN.step[ w ] = s
+        return true
+    end
+
+    --- (§6) The strict sequence up in this display's copy at now (its name), else false: the hold. Allocates nothing.
+    function state.WindowHold()
+        local t = state.now + state.offset
+        for w = 1, WIN.n do
+            if WIN.strict[ w ] and WIN.key[ w ] and upAt( w, t ) then return WIN.name[ w ] end
+        end
+        return false
+    end
+
+    --- (§15, the snapshot's Windows section) The copy's row count, and row `w`: its name, whether it exists in this
+    --- display, up at now, its step and its number of steps (0 for a window without steps).
+    function state.WindowCount()
+        return WIN.n
+    end
+
+    function state.WindowRow( w )
+        return WIN.name[ w ], not absent( w ), upAt( w, state.now + state.offset ), WIN.step[ w ], WIN.nSteps[ w ] or 0
+    end
+
+    --- Core.lua's slot loop at the top of every slot (and the alternatives probe, `send` false): the per-slot fired
+    --- marks cleared (ruling 20); `send`: this slot's lines at now send their changes.
+    function state.WindowSlot( send )
+        WIN.send = send
+        for id in pairs( WIN.fired ) do WIN.fired[ id ] = false end
+        for w = 1, WIN.n do WIN.slotOpened[ w ], WIN.slotClosed[ w ] = false, false end
+    end
+
+    --- Core.lua's window line opened (`isOpen`) or closed window `name`'s copy: true when lines both opened and closed
+    --- it in this slot (L1205: the flapping pair, which the core warns about once). Allocates nothing.
+    function state.WindowFlap( name, isOpen )
+        local w = WIN.byKey[ name ]
+        if not w then return false end
+        if isOpen then WIN.slotOpened[ w ] = true else WIN.slotClosed[ w ] = true end
+        return WIN.slotOpened[ w ] and WIN.slotClosed[ w ] or false
+    end
+
+    --- Core.lua's window line `scriptID`: true when it already changed the copy in this slot; `mark` sets it.
+    function state.WindowFired( scriptID, mark )
+        if mark then WIN.fired[ scriptID ] = true end
+        return WIN.fired[ scriptID ] == true
+    end
+
+    --- The key a change to window `name` is sent under from this pass, or false: a Lua window, a display with no key,
+    --- or a slot that does not send.
+    function state.WindowSendKey( name )
+        local w = WIN.byKey[ name ]
+        return WIN.send and w ~= nil and WIN.key[ w ] or false
     end
 
     --- A window-reading line's recheck times (state.recheck): each up window's forecast open still ahead (a hair past
@@ -1801,9 +1925,14 @@ do
         else seen[ script.ID ] = script.Recheck or true end
 
         if script.Variables then
+            local info = scripts.PackInfo[ state.system.packName ]
             for _, var in ipairs( script.Variables ) do
                 local varIDs = state:GetVariableIDs( var )
-                if varIDs then
+                local pure = info and info.pure and info.pure[ var ] -- CN25: its value's rechecks, as when inlined
+                if pure then
+                    local subscript = not seen[ pure ] and scripts.DB[ pure ]
+                    if subscript then recurseRechecks( subscript, seen ) end
+                elseif varIDs then
                     for _, entry in ipairs( varIDs ) do
                         if not seen[ entry.id ] then
                             local subscript = scripts.DB[ entry.id ]
@@ -1817,28 +1946,70 @@ do
         return seen
     end
 
+    -- A line's own times and those of every variable it reads, joined once (the first recheck after a load) into one
+    -- function of their distinct times (scripts:BuildRecheck's parts): the times are a set, and a pack's variants of one
+    -- variable repeat most comparisons, so each is evaluated once per recheck. False: not joined (a part list missing,
+    -- or too many values for one Lua function): the functions are called one by one.
+    local joinParts = {}
+
+    local function addParts( parts )
+        for _, part in ipairs( parts ) do
+            if not joinParts[ part ] then joinParts[ part ], joinParts[ #joinParts + 1 ] = true, part end
+        end
+    end
+
+    local function joinRechecks( script )
+        wipe( joinParts )
+        if script.Recheck then
+            if not script.RecheckParts then return false end
+            addParts( script.RecheckParts )
+        end
+        for id in pairs( script.AllRechecks ) do
+            local s = scripts.DB[ id ]
+            if not ( s and s.RecheckParts ) then return false end
+            addParts( s.RecheckParts )
+        end
+        if #joinParts == 0 then return false end
+        local fn = Hekili:Loadstring( "-- " .. tostring( script.ID ) .. " rechecks\nreturn " .. table.concat( joinParts, ", " ) )
+        if not fn then return false end
+        setfenv( fn, state )
+        return fn
+    end
+
+    -- Adds `script`'s own recheck times and those of every variable it reads to the work table.
+    local function addRechecks( script )
+        if script.Variables and not script.AllRechecks then
+            script.AllRechecks = recurseRechecks( script )
+
+            for id, func in pairs( script.AllRechecks ) do
+                if type( func ) ~= "function" then script.AllRechecks[ id ] = nil end
+            end
+
+            script.JoinedRecheck = joinRechecks( script )
+        end
+
+        if script.JoinedRecheck then
+            recheckHelper( workTable, script.JoinedRecheck() )
+            return
+        end
+
+        if script.Recheck then
+            recheckHelper( workTable, script.Recheck() )
+        end
+
+        if script.Variables then
+            for id, func in pairs( script.AllRechecks ) do
+                recheckHelper( workTable, func() )
+            end
+        end
+    end
+
     function state.recheck( ability, script, stack, block )
         local times = state.recheckTimes
         wipe( workTable )
 
         if script then
-            if script.Recheck then
-                recheckHelper( workTable, script.Recheck() )
-            end
-
-            if script.Variables then
-                if not script.AllRechecks then
-                    script.AllRechecks = recurseRechecks( script )
-
-                    for id, func in pairs( script.AllRechecks ) do
-                        if type( func ) ~= "function" then script.AllRechecks[ id ] = nil end
-                    end
-                end
-
-                for id, func in pairs( script.AllRechecks ) do
-                    recheckHelper( workTable, func() )
-                end
-            end
+            addRechecks( script )
 
             if script.ReadsWindow then state.WindowRecheck( recheckHelper, workTable ) end
         end
@@ -1861,23 +2032,7 @@ do
                 local callScript = caller.script
                 callScript = callScript and scripts:GetScript( callScript )
 
-                if callScript and callScript.Recheck then
-                    recheckHelper( workTable, callScript.Recheck() )
-
-                    if callScript.Variables then
-                        if not callScript.AllRechecks then
-                            callScript.AllRechecks = recurseRechecks( callScript )
-
-                            for id, func in pairs( callScript.AllRechecks ) do
-                                if type( func ) ~= "function" then callScript.AllRechecks[ id ] = nil end
-                            end
-                        end
-
-                        for id, func in pairs( callScript.AllRechecks ) do
-                            recheckHelper( workTable, func() )
-                        end
-                    end
-                end
+                if callScript and callScript.Recheck then addRechecks( callScript ) end
             end
         end
 
@@ -1886,27 +2041,7 @@ do
                 local callScript = caller.script
                 callScript = callScript and scripts:GetScript( callScript )
 
-                if callScript and callScript.Recheck then
-                    recheckHelper( workTable, callScript.Recheck() )
-                end
-
-                if callScript and callScript.Recheck then
-                    recheckHelper( workTable, callScript.Recheck() )
-
-                    if callScript.Variables then
-                        if not callScript.AllRechecks then
-                            callScript.AllRechecks = recurseRechecks( callScript )
-
-                            for id, func in pairs( callScript.AllRechecks ) do
-                                if type( func ) ~= "function" then callScript.AllRechecks[ id ] = nil end
-                            end
-                        end
-
-                        for id, func in pairs( callScript.AllRechecks ) do
-                            recheckHelper( workTable, func() )
-                        end
-                    end
-                end
+                if callScript and callScript.Recheck then addRechecks( callScript ) end
             end
         end
 
@@ -3130,7 +3265,17 @@ do
             -- LibRangeCheck's about 5 yd brackets): GetRange answers nil while unknown, and a lower bound alone past
             -- the library's last check. Unknown never blocks: within and outside are both true,
             -- distance and minR/maxR keep upstream's defaults.
-            if k == "distance" then t[k] = ( t.minR + t.maxR ) / 2
+            -- The type is not kept: a pass can span a target change (the update yields across frames). First in the
+            -- chain: the k:sub keys below build strings. Under the Map restriction (the target's GUID secret, nil
+            -- here) no type read is trusted, so none is made (L1142): unknown.
+            if k == "creature_type" then
+                if not UnitGUID( "target" ) then return "unknown" end
+                local _, id = UnitCreatureType( "target" )
+                if issecretvalue( id ) or not CREATURE_TYPES[ id ] then return "unknown" end
+                return CREATURE_TYPES[ id ]
+            elseif k == "is_demon" then return t.creature_type == "demon"
+            elseif k == "is_undead" then return t.creature_type == "undead"
+            elseif k == "distance" then t[k] = ( t.minR + t.maxR ) / 2
             elseif k == "in_range" then return t.distance <= 8
             elseif k == "minR" or k == "maxR" then
                 local minR, maxR = RC:GetRange( "target" )
@@ -3168,10 +3313,6 @@ do
                     if c then t[k] = strlower( c )
                     else t[k] = "unknown" end
                 end
-            elseif k == "creature_type" then
-                local _, id = UnitCreatureType( "target" )
-                if issecretvalue( id ) or not CREATURE_TYPES[ id ] then t[k] = "unknown"
-                else t[k] = CREATURE_TYPES[ id ] end
             elseif k == "exists" then t[k] = UnitExists( "target" )
             elseif k == "health_current" then return t.health.current
             elseif k == "health_max" then return t.health.max
@@ -3188,7 +3329,6 @@ do
                     t[k] = ( UnitCanAttack( "player", "target" ) and ( UnitClassification( "target" ) == "worldboss" or UnitLevel( "target" ) == -1 ) )
                 end
             elseif k == "is_dead" then t[k] = UnitIsDeadOrGhost("target")
-            elseif k == "is_demon" then t[k] = t.creature_type == "demon"
             elseif k == "is_friendly" then t[k] = Facade.UnitCanAssist( "player", "target" )
             elseif k == "is_in_party" then t[k] = Facade.UnitInParty( "target" )
             elseif k == "is_in_raid" then t[k] = Facade.UnitInRaid( "target" ) ~= nil
@@ -3201,7 +3341,6 @@ do
                 t[k] = UnitIsUnit( "targettarget", "player" ) == true
 
             elseif k == "is_dummy" then t[k] = ( TargetDummies[ t.npcid ] ~= nil )
-            elseif k == "is_undead" then t[k] = t.creature_type == "undead"
 
             elseif k == "level" then t[k] = UnitLevel( "target" ) or UnitLevel( "player" ) or MAX_PLAYER_LEVEL
             elseif k == "moving" then t[k] = GetUnitSpeed( "target" ) > 0
@@ -4674,6 +4813,18 @@ do
 
             if Hekili.LoadingScripts then
                 return defaultValue
+            end
+
+            -- CN25: a pure variable (Scripts.lua scripts:MarkPure) is its value, read now in the reader's context, as its
+            -- text inlined there would be: no cache, no path, nothing built
+            local info = scripts.PackInfo[ state.system.packName ]
+            local pure = info and info.pure and info.pure[ var ]
+            local script = pure and scripts.DB[ pure ]
+            if script and script.Modifiers and script.Modifiers.value then
+                local v = script.Modifiers.value()
+                -- the value only: a per-term text would re-read each nested pure variable (2^depth in a traced cycle)
+                if debug then Hekili:Debug( " - variable.%s = %s (pure)", var, tostring( v ) ) end
+                return v
             end
 
             if not db[ var ] then
@@ -6501,7 +6652,7 @@ do
 
         state.ClearCycle()
         state:ResetVariables()
-        state.CopyWindows() -- the cycle starts from the belief's windows (Facade.Window)
+        state.CopyWindows( dispName ) -- the cycle starts from the belief's windows (Facade.Window), APL ones by this display's key
         -- This will be our comprehensive resetter.
         state:ResetQueues()
 
@@ -7223,7 +7374,7 @@ do
 
             local tt = toggle and toggle ~= "none" and settings.toggles[ toggle ] -- nil for an unknown key: disabled below, as before
             live = tt and ( tt.override or tt.infusion )
-            if toggle and toggle ~= "none" and ( not self.toggle[ toggle ] or ( settings.toggles[ toggle ].separate and state.filter ~= toggle ) ) then return DISABLED, format( "toggle %s", toggle ), live end
+            if toggle and toggle ~= "none" and ( not self.toggle[ toggle ] or ( settings.toggles[ toggle ].separate and state.filter ~= toggle and self.seqBypass == 0 ) ) then return DISABLED, format( "toggle %s", toggle ), live end
 
             if ability.id < -100 or ability.id > 0 or toggleSpells[ spell ] then
                 if state.filter ~= "none" and state.filter ~= toggle and not ability[ state.filter ] then return DISABLED, "display", live
@@ -7257,11 +7408,13 @@ do
 
         local cache, reasons = disabledCache, disabledReason
         if strict then cache, reasons = disabledStrict, disabledStrictReason end
-        local code, reason = cache[ spell ], reasons[ spell ]
+        local bypass = self.seqBypass ~= 0 -- a sequence line's answer (§7): not the cached one, never cached
+        local code, reason
+        if not bypass then code, reason = cache[ spell ], reasons[ spell ] end
         if code == nil then
             local live
             code, reason, live = disabledPrefix( self, ability, spell, strict )
-            if not live then cache[ spell ], reasons[ spell ] = code, reason end
+            if not live and not bypass then cache[ spell ], reasons[ spell ] = code, reason end
         end
         if code == DISABLED then return true, reason end
         if code == ENABLED then return false end
@@ -7400,37 +7553,52 @@ do
             return false, "not usable in combat"
         end
 
-        -- `usable_on`: the target creature types the ability works on (`target.creature_type`'s keys). An unknown type
-        -- (secret in a restricted area) falls to the client's range answer on a hostile target: a plain nil is the
-        -- client's answer for a type the spell cannot hit (L238); true, false or secret keep it usable here.
+        -- `usable_on`: the target creature types the ability works on (`target.creature_type`'s keys), or { "any" } for
+        -- any type; usable only on a living attackable target of a confirmed type (L1141, L1160). The target must
+        -- plainly exist, not plainly be dead, and be plainly attackable outside the Map restriction. Under it (a dungeon
+        -- or raid) the target's GUID reads secret (nil here): no type read is trusted (L1142) and a secret UnitCanAttack
+        -- does not refuse (L1161). A plain type decides outside it ("any": no type check). Under it, and while the type
+        -- reads unknown, the client's range answer for `rangeSpell` (else the ability) decides: plain true or false is
+        -- a target the spell can hit, a plain nil one it cannot (L238), a secret one is unconfirmed.
         z = ability.usable_on
         if z then
-            local ct = self.target.creature_type
-            if ct ~= "unknown" then
+            local issecretvalue = Facade.issecretvalue
+            local e = UnitExists( "target" )
+            if issecretvalue( e ) or not e then return false, "usable_on: no attackable target" end
+            local restricted = not UnitGUID( "target" )
+            local hostile, dead = UnitCanAttack( "player", "target" ), UnitIsDead( "target" )
+            if issecretvalue( hostile ) then
+                if not restricted then return false, "usable_on: no attackable target" end
+            elseif not hostile then return false, "usable_on: no attackable target" end
+            if not issecretvalue( dead ) and dead then return false, "usable_on: no attackable target" end
+            local ct = z[ 1 ] == "any" and "any" or self.target.creature_type -- unknown while restricted
+            if ct == "any" and not restricted then -- any type: the target checks above decide
+            elseif ct ~= "unknown" and ct ~= "any" then
                 local ok = false
                 for i = 1, #z do
                     if z[ i ] == ct then ok = true; break end
                 end
                 if not ok then return false, "target's creature type not in usable_on" end
             else
-                local issecretvalue = Facade.issecretvalue
-                local e, hostile = UnitExists( "target" ), UnitCanAttack( "player", "target" )
-                if not issecretvalue( e ) and e and not issecretvalue( hostile ) and hostile then
-                    local r, secret = C_Spell.IsSpellInRange( ability.rangeSpell or ability.id, "target" )
-                    if r == nil and not secret then return false, "creature type unknown; range nil: wrong target type" end
+                local r, secret = C_Spell.IsSpellInRange( ability.rangeSpell or ability.id, "target" )
+                if secret then return false, "creature type unknown; range secret: unconfirmed" end
+                if r == nil then
+                    if ct == "any" then return false, "range nil: not a valid target" end
+                    return false, "creature type unknown; range nil: wrong target type"
                 end
             end
         end
 
-        if ability.form and not state.buff[ ability.form ].up then
+        local skip = self.gateSkip -- ruling 36: the gates a strict start test may look past for this member
+        if ability.form and not ( skip and skip.form ) and not state.buff[ ability.form ].up then
             return false, "required form (" .. ability.form .. ") not active"
         end
 
-        if ability.noform and state.buff[ ability.noform ].up then
+        if ability.noform and not ( skip and skip.noform ) and state.buff[ ability.noform ].up then
             return false, "not usable in current form (" .. ability.noform .. ")"
         end
 
-        z = ability.buff
+        z = not ( skip and skip.buff ) and ability.buff
         if type( z ) == "table" then
             for _, v in ipairs( z ) do
                 if not state.buff[ v ].up then
@@ -7638,7 +7806,8 @@ function state:TimeToReady( action, pool )
         waitRes = wait
     end
 
-    z = ability.nobuff
+    z = self.gateSkip
+    z = not ( z and z.nobuff ) and ability.nobuff
     if type( z ) == "table" then
         for _, v in ipairs( z ) do
             z = self.buff[ v ].remains

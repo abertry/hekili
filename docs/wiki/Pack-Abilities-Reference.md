@@ -46,6 +46,7 @@ The belief reads the declared fields it needs to model a cast (cost, cooldown, c
 | `spendBase` | boolean | Reads `spend` as a share of base power at any size, for a percent cost that an aura can raise past 100% |
 | `excess_cap` | number or function | The most extra of the spent resource the ability converts beyond its cost. A line with `max_energy` waits for the cost plus this, at most the resource's maximum ([APL line options](APL-Line-Options)). |
 | `refundOnAvoid` | boolean or number | The share of the cost given back when the target dodges, parries or misses. `true` uses the resource's default share. Belief only. |
+| `refundNowOnAvoid` | boolean | `true`: when the target dodges, parries or misses the cast, the belief gives back what the cast's `now` spent from the ability's resource ([Pack resources and regen](Pack-Resources-And-Regen#refunds)). Belief only. |
 | `ladder` | boolean | `false`: the client's usability answers for this ability do not bound the resource. Use it when the answer depends on something else, such as a finisher that is unusable at 0 combo points. |
 
 A proc that makes abilities cheaper is a cost modifier (`RegisterCostMod`), not a condition in `spend` ([Pack API reference](Pack-API-Reference#cost-and-gcd-modifiers)).
@@ -88,15 +89,17 @@ These fields decide whether the ability is known, usable and shown.
 | `debuff` | string or list | Target auras that must be up |
 | `nobuff` | string or list | Player auras that must be down; the simulation waits until they fall |
 | `nodebuff` | string or list | Target auras that must be down; the simulation waits until they fall |
-| `usable_on` | list | The target creature types it works on, such as `{ "undead", "demon" }`. An unknown type never blocks it. |
+| `usable_on` | list | The target creature types it works on, such as `{ "undead", "demon" }`, or `{ "any" }` for any type. Usable only on a living attackable target of a confirmed type: a readable type decides; in dungeons and raids, or while the client gives no type, the client's range answer for `rangeSpell` (else the ability) must confirm it. |
 | `healthGate` | number | The client allows the ability only at or below this share of the target's health. The belief reads the client's answers for it as bounds on the target's health. |
 | `range` | number | The greatest range in yards, checked when the range filter is on |
-| `rangeSpell` | number | The spell ID to ask the client about for range |
+| `rangeSpell` | number or function | The spell ID to ask the client about for range (and for `usable_on`'s type confirmation); a function returns the ID, or nil for the ability's own |
 | `nomounted` | boolean | Not recommended while mounted |
 | `nocombat` | boolean | Not usable in combat |
 | `toggle` | string | The toggle it sits under: `"cooldowns"`, `"defensives"`, `"interrupts"`, `"potions"` and the others on [Toggles](Toggles) |
 | `startsCombat` | boolean | Casting it starts combat with the target |
 | `essential` | boolean | A precombat line with this ability is still considered once combat has started |
+| `sequence_ignore` | list | Gates out of `"form"`, `"noform"`, `"buff"`, `"nobuff"` that a `strict_sequence` start test skips for this ability when it is a member after the first and the line has no `start_on_first=1`. Any other name raises at load. |
+| `sequence_ready` | function | Replaces this ability's readiness in the same start test; inside it `ready()` is the normal test with `sequence_ignore` applied. The member's own `if=` still applies. |
 
 Declare a form requirement with `form`, never through `buff` or a `usable` function; `tests/Forever/forms_spec.lua` checks this.
 
