@@ -363,15 +363,18 @@ describe("now handlers", function()
             local text = fh:read("*a")
             fh:close()
             local function check(key, body, ind)
+                -- an `effect` (RegisterAbility's one factory for both) is a handler with its `now`
                 local sim = body:match("\n" .. ind .. "handler = function%(%)(.-)\n" .. ind .. "end,")
                     or body:match("\n" .. ind .. "start = function%(%)(.-)\n" .. ind .. "end,")
+                    or body:match("\n" .. ind .. "effect = function%(%)(.-)\n" .. ind .. "end,")
                 if not sim then
                     return
                 end
                 for _, v in ipairs(VERB) do
                     if sim:find(v) then
                         scanned = scanned + 1
-                        if not body:find("\n" .. ind .. "now = function") and not EXEMPT[key] then
+                        local now = body:find("\n" .. ind .. "now = function") or body:find("\n" .. ind .. "effect = ")
+                        if not now and not EXEMPT[key] then
                             missing[#missing + 1] = path .. ": " .. key
                         end
                         return
@@ -635,6 +638,21 @@ describe("now handlers", function()
         pcall(I.ab.now[a]) -- as DevTools' RunStressTest calls every function in ability.funcs
         assert.are.equal(gen, VS.AuraGen("target"))
         assert.is_nil(VS.Aura("target", fs.SPENDER_C, 1.5))
+    end)
+
+    -- mage-mana-belief review M6: the context's reads (I.NowAt) run before the verbs go live, so a raise there leaves
+    -- them inert
+    it("keeps the verbs inert after the context's reads raise before a `now`", function()
+        start()
+        local haste = I.Haste
+        I.Haste = function()
+            error("haste raised")
+        end
+        pcall(cast, fs.SPENDER_C, 30)
+        I.Haste = haste
+        local gen = VS.AuraGen("target")
+        pcall(I.ab.now[I.ab.bySpell[fs.SPENDER_C]])
+        assert.are.equal(gen, VS.AuraGen("target"))
     end)
 
     it("gives a tracked passive (ns.TrackPassive) no effects: no GCD, no cooldown", function()

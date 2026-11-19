@@ -195,9 +195,10 @@ What a content addon may use, and nothing else (`tests/boundary_spec.lua` enforc
 - `Hekili:NewClass(token, { specs = { ... } })`, `Hekili:NewShared(...)`, `Hekili:NewRace(...)` and the `Register*`
   calls on the object they return (abilities, auras, hooks, settings, packs, ...). `NewClass` (`Engine/Schema/Spec/Kits.lua`)
   returns the class's kit, or nil on another class (the pack then returns). The kit holds every ability, aura and talent;
-  each entry of `specs` is one talent tree's spec: `{ key, name, tree (1-3), icon, role, ranged, package, unsupported }`
-  (`package`: the default priority's name; `unsupported`: no priorities on Forever, its displays off and its page a
-  notice). A spec reads the kit through its metatable and keeps its own settings and options. Ids are the core's:
+  each entry of `specs` is one talent tree's spec: `{ key, name, tree (1-3), icon, role, ranged, package, unsupported,
+  fillWindow }` (`package`: the default priority's name; `unsupported`: no priorities on Forever, its displays off and
+  its page a notice; `fillWindow`: a resource key, every forecast window of the spec reaching at least the time that
+  pool takes to fill from empty at its combined rate, `state.ForecastWindow`). A spec reads the kit through its metatable and keeps its own settings and options. Ids are the core's:
   `100000 + client class id x 10 + slot` (`ns.TreeSpecID`, `Engine/Schema/Trees.lua`; slot 0 the kit, 1..n the specs
   in `specs` order: Warrior Arms 100011). `RegisterTalents` entries are `{ tree, spell, max rank }`, the tree from the
   DB2 (`Talent.TabID`, ordered by `TalentTab.OrderIndex`; 0 when unknown, counted nowhere). `kit:RegisterSetting(key,
@@ -321,6 +322,13 @@ where it works, a reaction only where only an outcome reveals the span.
 `RegisterAbility{ passive = true, id = <number> }` (`Engine/Schema/Spec/Abilities.lua`) is a spell the spellbook knows and the
 player never casts. The belief tracks its known rank (the `now` context's `knownRank` reads it; the sim's asks the
 spellbook through the facade); the sim never sees it.
+
+`RegisterAbility{ ranks = { id1, id2, ... } }` and `effect = function() return function() ... end end`
+(`Engine/Schema/Spec/Ranks.lua`, `ns.DeriveAbility`, run first on every registration) are derived at registration:
+`ranks` gives `id`, `copy` (ranks 2..n) and `known` (`Facade.KnownRank(ranks) > 0`), and a field declared
+`{ byRank = values }` reads the highest known rank's value (rank 1's before any); `effect` is called once for each
+missing one of `handler` and `now`, two closures for the two environments. A declared field wins; neither `ranks` nor
+`effect` crosses `Build(def)`.
 
 **Target creature type.** `target.creature_type` (`Engine/Sim/State.lua`'s target table, cached per reset) is the
 target's creature type as a key: UnitCreatureType's second return, CreatureType.db2's ID (the same on every client
@@ -630,13 +638,15 @@ default list from the forecast window `state.delayMax` as it would after an empt
 to die (`fight_remains`, `target.time_to_die`, `time_to_pct_N`, `longest_ttd`, ...) answers "unknown": `FOREVER`, 3600 s,
 a fight that never ends soon, a grey (trivial) target's too (wowsims's `remainingTime` has no trivial case), and
 `GetNumTTDsAfter` counts every enemy as after any time. The tracker's 0.5 s ticker is not started. A priority may read them without a load warning (`Engine/Sim/AplWarnings.lua` warns only
-on target health); wowsims's `remainingTime` maps to `fight_remains` with that deviation.
+on target and player health); wowsims's `remainingTime` maps to `fight_remains` with that deviation.
 
-**Player health.** The same rule for the player's own health (`health.pct`, `health.current`, `health.deficit`): the
-plain value whenever the client answers one (out of combat), full while it keeps the answer secret
-(`Game/State/Families/Player.lua`), never a stale read from before the pull. A defensive line (`health.pct<50`) never
-fires on an unknown and a `health.pct>50` gate always passes; no load warning. wowsims's `currentHealthPercent` maps to
-`health.pct` with that deviation.
+**Player health.** The client hides the player's own health in combat (`UnitHealth`/`UnitHealthMax("player")` secret;
+owner L1461; the headless fake client answers so): `health.pct`, `health.current`, `health.deficit` read the plain
+value out of combat and full while the answer is secret (`Game/State/Families/Player.lua`), never a stale read from
+before the pull, and the facade's row never hands the core a secret. A defensive line (`health.pct<50`) never fires in
+combat and a `health.pct>50` gate always passes there, so a custom line reading it gets a load warning
+(`Engine/Sim/AplWarnings.lua`), and the translator omits every wowsims entry reading `currentHealthPercent` or
+`currentHealth` (its rule 23, owner L1462).
 
 **APL line options.** `make_pack.lua` and the in-game importer accept these on a line before `if=` (in the tool,
 an unknown option or a non-numeric value errors; `unparse` writes them in this order): `name=<list>` (for

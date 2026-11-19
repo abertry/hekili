@@ -4,9 +4,32 @@
 
 ### New
 
+- Italian translation of the core interface, thanks to Sairiin.
+- Simplified Chinese: Cooldowns now reads 爆发 where it means burst abilities, and the sequence options are translated (thanks to dodoels).
+- A new wiki page, APL Conditions On Forever, lists which priority conditions work on Forever, which are estimated or
+  limited, and what to write instead, such as `mana.pct_lo` for `mana.pct`.
+
 ### Changed
+- Feral: the default priority follows wowsims's simplified Feral priority: one priority at every enemy count, with new energy points for Shifting Power and Ferocious Bite.
+- Guardian: the default priority follows wowsims's simplified Bear priority: one priority at every enemy count, and Swipe is no longer suggested.
+- In a custom condition, `gcd` on its own now means the full global cooldown (`gcd.max`), as it already did in an
+  imported priority.
+- Elemental Shaman: the default priority follows wowsims's newest Elemental build: Fire Nova comes before Elemental Mastery, Chain Lightning is cast only above 40% mana, and Earth Shock on Revelation no longer waits for a single target.
+- Hunter: Survival Melee follows wowsims's new build (new talents and gear; Immolation Trap is now the first melee shot and it drinks a Major Mana Potion again). Not yet checked in game.
+- Guardian and Protection Warrior priorities no longer include health-based defensive suggestions (your health is hidden from addons in combat); custom priorities that check your health get a warning on the Warnings page.
 
 ### Fixed
+- Warrior: Unbridled Wrath now counts its measured 60% chance per swing and 1 rage per proc with a two-hander too, and Heroic Strike and Cleave now count the Unbridled Wrath and Reckless Swings rage they give.
+- Fire and Frostfire Mage: the mana estimate is less likely to count a Master of Elements refund for a critical hit
+  that came from Fireball's or Pyroblast's burn rather than a spell, which could show a spell as affordable too early.
+  A Fire spell's critical hit that lands at the same moment as one of those burns no longer counts its refund, so the
+  next spell can show a moment late.
+- A separate Cooldowns, Interrupts or Defensives display whose Forecast Period is longer than the Forecast window
+  (Performance) now recommends an ability whose resources arrive within that period, instead of treating it as not
+  ready.
+- At very high spell haste, the icons after the first no longer come up a little early: a global cooldown is never
+  shorter than 1 second.
+- Dominos users no longer get repeated Lua errors when Hekili reads keybindings before all action bars or buttons exist.
 
 ### Known issues
 

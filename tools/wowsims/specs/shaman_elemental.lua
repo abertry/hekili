@@ -1,6 +1,6 @@
 -- tools/wowsims/specs/shaman_elemental.lua (wowsims packs plan, Task 14): Elemental (wowsims.com)'s wowsims/forever
 -- request and translation.
--- Values from wowsims/forever (MIT, https://github.com/wowsims/forever) ui/specs/shaman/elemental/builds/testing.build.json
+-- Values from wowsims/forever (MIT, https://github.com/wowsims/forever) ui/specs/shaman/elemental/builds/default.build.json
 -- at the pin: the player (Troll before the re-pin, Windshaper Skyborne at e2842f0a78; talents
 -- 5500331023001351-053002001-053, gear, options) and the rotation, wowsims's Auto list for the build.
 -- Disagreements (P7; floor 0.93: decisions on-GCD 0.937 of 95 on the first clean run, 0.853 before the translator's
@@ -55,10 +55,19 @@ return {
     spec = "elemental",
     name = "Elemental",
     talentTree = "shaman",
-    build = "ui/specs/shaman/elemental/builds/testing.build.json",
+    -- Re-pin ab0f00e4fc (lane repin-ab0f-shaman): default.build.json (renamed from testing.build.json): new gear,
+    -- main-hand imbue 20750 (was 20749), an extra elixir 250335, distance 20, Eye of the Beast 13968 as the on-use
+    -- trinket; the list's variables inlined (Fire Nova above Elemental Mastery; Chain Lightning only at mana.pct_lo >
+    -- 40 without Elemental Mastery up, no multi-target branch; Earth Shock on Revelation at any target count).
+    -- Elemental Focus also rolls once per Lightning Overload launch (sim/shaman/talents_elemental.go): the world does.
+    build = "ui/specs/shaman/elemental/builds/default.build.json",
     -- the build's resourcePotId 13444, Major Mana Potion; the Weakness Analyzer (ItemSparse 272438: a trinket) as
     -- Shadow and Affliction map it
-    map = { OtherActionResourcePotion = "major_mana_potion", ["item:272438"] = "use_items" },
+    map = {
+        OtherActionResourcePotion = "major_mana_potion",
+        ["item:272438"] = "use_items",
+        ["item:13968"] = "use_items",
+    },
     -- by role (docs/dev/wowsims-packs.md): Flame Shock upkeep, Earth Shock on Revelation; Chain Lightning, Lightning
     -- Bolt and the AoE lines rotational; the totems none (the user, 2026-10-21)
     focus = { flame_shock = 2, earth_shock = 1 },

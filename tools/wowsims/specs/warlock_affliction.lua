@@ -3,8 +3,8 @@
 -- Values from wowsims/forever (MIT, https://github.com/wowsims/forever)
 -- ui/specs/warlock/dps/builds/aff_wrack.build.json (the build: race Orc, talents 25500020135201351-0050203001-05,
 -- the Imp sacrificed (no demon out), Demon Armor, curse Elements, 32 Soul Shards, Engineering/Tailoring, 20 yd; its
--- rotation) and presets.ts (AFF_WRACK_APL, the Builds list) at the pin. The build carries no gear:
--- gear_sets/preraid.gear.json (central fix 27). Spec binding: 35 Affliction points to 11 Demonology and 5 Destruction:
+-- rotation) and presets.ts (AFF_WRACK_APL, the Builds list) at the pin. The build's own gear (#1048,
+-- owner L1397; was preraid.gear.json, central fix 27). Spec binding: 35 Affliction points to 11 Demonology and 5 Destruction:
 -- Affliction's default.
 -- Re-pin e5a9cd2a2d -> e4ef929e54 (0.9; owner ruling L1154 (2): follow wowsims): the new Wrack APL (202831a0a0).
 -- Bane of Doom only on 2+ targets (one target never casts it); the Cooldowns call always on one target; Amplify Curse
@@ -12,8 +12,8 @@
 -- Amplify Curse used within its duration + 1.5 s, or waiting would cost a use over the fight left); the Cooldowns
 -- Wrack line is gone (Life Tap moves up). In game `fight_remains` reads 3600 (API-forced), so every "Waiting Costs"
 -- term is false there and the racials fire on Amp Agony Up (or 2+ targets); the replay answers it from the log.
--- The Major Mana Potion line goes (rule 13: wowsims's autocast no longer uses the potion in the 180 s fight): the new
--- APL drinks Major Spellblasting Potion 250937 (cooldowns #2, at 4.41 and 124.41) on the shared potion cooldown, and
+-- (At ab0f00e4fc the Major Mana Potion line is back, from the log's autocast of item 13444.) The e4ef929e54 APL drank
+-- Major Spellblasting Potion 250937 (cooldowns #2, at 4.41 and 124.41) on the shared potion cooldown, and
 -- 250937 has no key in our data (the pack omits its line); the
 -- Weakness Analyzer's cooldown is 6 min (was 90 s: one use, was two). Wrack (6de4dee7b9 and on) no longer raises the
 -- damage the other DoTs deal: while it channels, Corruption, Siphon Life and Bane of Agony tick on their half
@@ -54,6 +54,10 @@
 -- the loops (docs/dev/wowsims-packs.md, Deviations by ruling).
 -- Leveling (owner ruling 2026-10-21: no low-level filler): each list ends in Shadow Bolt then Life Tap under its cost,
 -- so no bracket idles (worst 0.2 s at 10, 40 and 60; LIVE60 0.2).
+-- Re-pin e4ef929e54 -> ab0f00e4fc (owner L1396/L1397: follow wowsims): each build carries its own gear (wowsims #1048/#1070)
+-- (Affliction already was Orc; Succubus summoned, Major Spellblasting Potion 250937 added) (Blood Fury is the race's racial; the Human's logs are gone), so the request loses the Human
+-- gear and Elixir of Firepower, and the Orc's Life Tap / regen are the world's seeds (Spirit 170, 1.2 a 0.1 s tick inside
+-- the rule; warlock_world.lua).
 return {
     class = "WARLOCK",
     pack = "Affliction (wowsims.com)",
@@ -61,7 +65,7 @@ return {
     name = "Affliction",
     talentTree = "warlock",
     build = "ui/specs/warlock/dps/builds/aff_wrack.build.json",
-    gear = "ui/specs/warlock/dps/gear_sets/preraid.gear.json",
+    -- no `gear`: the build carries its own at ab0f00e4fc (wowsims #1048; owner L1397)
     map = { ["item:272438"] = "use_items" }, -- the Weakness Analyzer (ItemSparse 272438: a trinket, InventoryType 12)
     -- the build's "Improved Shadow Bolt Known" variable is auraIsKnown(Shadow Vulnerability 17794): the talent that makes it
     knownAs = { [17794] = "improved_shadow_bolt" },

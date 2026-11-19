@@ -15,7 +15,7 @@ local UnitCanAttack, UnitClassification, UnitCreatureType, UnitExists = Facade.U
 local UnitGUID, UnitGetTotalAbsorbs, UnitHealth, UnitHealthMax = Facade.UnitGUID, Facade.UnitGetTotalAbsorbs, Facade.UnitHealth, Facade.UnitHealthMax
 local UnitInRange, UnitIsConnected, UnitIsDead, UnitIsDeadOrGhost = Facade.UnitInRange, Facade.UnitIsConnected, Facade.UnitIsDead, Facade.UnitIsDeadOrGhost
 local UnitIsPlayer, UnitLevel, UnitPower, UnitPowerMax = Facade.UnitIsPlayer, Facade.UnitLevel, Facade.UnitPower, Facade.UnitPowerMax
-local UnitPowerType, UnitRangedDamage, UnitStat, UnitThreatSituation = Facade.UnitPowerType, Facade.UnitRangedDamage, Facade.UnitStat, Facade.UnitThreatSituation
+local UnitRangedDamage, UnitStat, UnitThreatSituation = Facade.UnitRangedDamage, Facade.UnitStat, Facade.UnitThreatSituation
 local Hekili = _G[ addon ]
 
 local auras = ns.auras
@@ -78,6 +78,9 @@ state.offset = 0
 state.modified = false
 state.resetType = "heavy"
 state.fullNext = false -- Core's alternative passes ran: the next reset is full (Engine/Sim/Core.lua altPasses)
+-- The longest window a display in use walks, set per update (Core.lua). Never reset: false (the global window) only
+-- before the first update, then the last update's.
+state.forecastHorizon = false
 -- Counts the simulated mutations below (auras, debuffs, resources, cooldowns and charges, stance, pets, totems, advance and
 -- reset): Engine/Schema/Races.lua's memoised cost holds while it and query_time stand. Not auto-reset.
 state.changes = 0
@@ -546,6 +549,14 @@ function ns.SpendPoints( c, res, ability )
     end
     return c
 end
+--- The declared spend of `ability` (an entry of class.abilities) and its resource, in one read: the cost the
+--- modifiers' wrapper answers (Engine/Schema/Races.lua M.Wrap), a number or nil, never a function (an ability's
+--- metatable calls it), and the ability's `spendType`, else the class's primary resource (even with no spend).
+--- Points: ns.SpendPoints. Allocates nothing.
+function state.SpendOf( ability )
+    return ability.spend, ability.spendType or class.primaryResource
+end
+
 -- (audit E8) Through the facade: knownRank(ids) is the highest rank of the list the spellbook knows (0 none; memoised
 -- there); swingBase(hand) the hand's unhasted swing speed, the attack speed with the melee haste taken out (0 unknown;
 -- hands 1 and 2); healthMax(unit) the client's. Allocate nothing.
@@ -1313,10 +1324,51 @@ local function tickReach( t, a, dt )
     return a + max( 1e-6, L - ( ( a - ( rawget( t, "last_tick" ) or 0 ) ) % L ) ) + dt
 end
 
+-- The forecast window (engine pass E3): a display's own window `base` (Engine/Sim/Core.lua: the global forecast window
+-- for Primary and AOE, a display's Forecast Period for the others), at least the time the spec's `fillWindow` pool
+-- takes to fill from empty at its combined rate (pack data, Engine/Schema/Spec/Kits.lua; a rate of 0, never read
+-- plain, stretches nothing). The slot's window, its retry's and the resource forecast's horizon. Allocates nothing.
+function state.ForecastWindow( base )
+    local key = state.spec.fillWindow
+    local r = key and rawget( state, key ) -- nil for a key naming no resource the class registered (Activation.lua)
+    if r then
+        local rate = r.regen_combined
+        if rate > 0 then return max( base, 0.01 + r.max / rate ) end
+    end
+    return base
+end
+
 -- Resource Modeling!
 local forecastResources
 
 do
+    -- A regen-model entry as the sim reads it (engine pass E6, E-D7: the one evaluator of forecastResources and
+    -- state:CombinedResourceRegen): its gates on `resource` (resource, spec, equipment, talent, aura, set bonus, setting,
+    -- swing, channel), its interval at `now` (a number, a function of `now` and the pool's value `v`, or a state field's
+    -- name; else 0) and its gain at `now`. Allocate nothing.
+    local function regenEntryActive( v, resource )
+        return ( not v.resource or v.resource == resource ) and
+               ( not v.spec or state.spec[ v.spec ] ) and
+               ( not v.equip or state.equipped[ v.equip ] ) and
+               ( not v.talent or state.talent[ v.talent ].enabled ) and
+               ( not v.aura or state[ v.debuff and "debuff" or "buff" ][ v.aura ].remains > 0 ) and
+               ( not v.set_bonus or state.set_bonus[ v.set_bonus ] > 0 ) and
+               ( not v.setting or state.settings[ v.setting ] ) and
+               ( not v.swing or state.swings[ v.swing .. "_speed" ] and state.swings[ v.swing .. "_speed" ] > 0 ) and
+               ( not v.channel or state.buff.casting.up and state.buff.casting.v3 == 1 and state.buff.casting.v1 == class.abilities[ v.channel ].id )
+    end
+
+    local function regenInterval( v, now, value )
+        local i = v.interval
+        return type( i ) == "number" and i or
+               ( type( i ) == "function" and i( now, value ) or
+               ( type( i ) == "string" and state[ i ] or 0 ) )
+    end
+
+    local function regenGain( v, now )
+        return type( v.value ) == "number" and v.value or v.value( now )
+    end
+
     local events = {}
     local remains = {}
 
@@ -1332,16 +1384,11 @@ do
         wipe( remains )
 
         local now = state.now + state.offset
-        -- Forever E9: the horizon is the global forecast window (Core.lua's delayMax), read here because a pass can
-        -- shorten delayMax and the reset forecast would inherit that.
-        local timeout = Hekili.Engine.settings.performance.forecastWindow or 15
-
-        if state.class.file == "DEATHKNIGHT" and state.runes then
-            -- Adjust timeout based on rune cooldowns and regen models for Frost DK
-            timeout = max( timeout, 0.01 + state.runes.expiry[ 6 ] - state.query_time )
-        elseif state.spec.assassination then
-            timeout = max( timeout, 0.01 + state.energy.max / max( 0.001, state.energy.regen_combined ) )
-        end
+        -- Forever E9: the horizon is the forecast window, not Core.lua's delayMax (a pass can shorten delayMax and the
+        -- reset forecast would inherit that). E-D6: the longest a display in use walks (state.forecastHorizon), since a
+        -- separate display reuses the last full reset's forecast; outside an update, the last update's horizon (the
+        -- global window before the first).
+        local timeout = state.ForecastWindow( state.forecastHorizon or Hekili.Engine.settings.performance.forecastWindow or 15 )
 
         timeout = timeout + state.gcd.remains
         local r = state[ resource ]
@@ -1369,20 +1416,10 @@ do
 
         if models then
             for k, v in pairs( models ) do
-                if ( not v.resource or v.resource == resource ) and
-                   ( not v.spec or state.spec[ v.spec ] ) and
-                   ( not v.equip or state.equipped[ v.equip ] ) and
-                   ( not v.talent or state.talent[ v.talent ].enabled ) and
-                   ( not v.aura or state[ v.debuff and "debuff" or "buff" ][ v.aura ].remains > 0 ) and
-                   ( not v.set_bonus or state.set_bonus[ v.set_bonus ] > 0 ) and
-                   ( not v.setting or state.settings[ v.setting ] ) and
-                   ( not v.swing or state.swings[ v.swing .. "_speed" ] and state.swings[ v.swing .. "_speed" ] > 0 ) and
-                   ( not v.channel or state.buff.casting.up and state.buff.casting.v3 == 1 and state.buff.casting.v1 == class.abilities[ v.channel ].id ) then
+                if regenEntryActive( v, resource ) then
 
                     local l = v.last()
-                    local i = type( v.interval ) == "number" and v.interval or
-                              ( type( v.interval ) == "function" and v.interval( now, r.actual ) or
-                              ( type( v.interval ) == "string" and state[ v.interval ] or 0 ) )
+                    local i = regenInterval( v, now, r.actual )
 
                     v.next = l + i
                     v.name = k
@@ -1473,7 +1510,7 @@ do
                     local last = r.fcount > 0 and r.forecast[ r.fcount ]
                     local val, vlo, vhi
                     if last then val, vlo, vhi = last.v, last.l, last.h else val, vlo, vhi = r.actual, r.actual_lo, r.actual_hi end
-                    local gain = type( e.value ) == "number" and e.value or e.value( now ) -- once: the same gain for the three streams
+                    local gain = regenGain( e, now ) -- once: the same gain for the three streams
                     local v = max( 0, min( r.max, val + bonus ) )
                     v = max( 0, min( r.max, v + gain ) )
                     local l = max( 0, min( r.max, vlo + bonus ) )
@@ -1496,9 +1533,7 @@ do
                     r.forecast[ idx ].e = e.name or "none"
                     r.fcount = idx
 
-                    local step = roundDown( type( e.interval ) == "number" and e.interval or
-                                           ( type( e.interval ) == "function" and e.interval( now, v ) or
-                                           ( type( e.interval ) == "string" and state[ e.interval ] or 0 ) ), 3 )
+                    local step = roundDown( regenInterval( e, now, v ), 3 )
 
                     remains[ e.resource ] = finish - e.next
                     if e.resume then
@@ -1540,6 +1575,27 @@ do
 
     ns.forecastResources = forecastResources
     state.forecastResources = forecastResources
+
+    -- The pool's rate a second: its continuous regen plus each aura-gated entry's gain over its interval, the entry read
+    -- as the forecast reads it (regenEntryActive, regenInterval, regenGain at query_time). Entries with no aura (periodic
+    -- gains such as a swing's out of a form) are left out. Allocates nothing.
+    function state:CombinedResourceRegen( t )
+        local regen = t.regen
+        if regen == 0.001 then regen = 0 end
+
+        local model = t.regenModel
+        if not model then return regen end
+
+        local resource, now = t.resource, state.query_time
+        for _, v in pairs( model ) do
+            if v.aura and regenEntryActive( v, resource ) then
+                local i = regenInterval( v, now, t.current )
+                if i > 0 then regen = regen + regenGain( v, now ) / i end
+            end
+        end
+
+        return regen
+    end
 end
 
 
@@ -2374,7 +2430,7 @@ do
                 local health, maxHealth, absorbs = UnitHealth( "player" ), UnitHealthMax( "player" ), UnitGetTotalAbsorbs( "player" )
                 local count = 1
 
-                for i = 2, 5 do
+                for i = 1, 4 do
                     local token = "party" .. i
                     if UnitExists( token ) and not UnitIsDeadOrGhost( token )then
                         count = count + 1
@@ -2385,21 +2441,17 @@ do
                     end
                 end
 
-                local effHealthPct = 100 * ( health + absorbs ) / maxHealth
+                local effHealthPct = 100 * ( health + absorbs ) / max( 1, maxHealth )
                 t[k] = effHealthPct
 
             elseif k == "at_risk" then
-                local health, maxHealth, absorbs = UnitHealth( "player" ), UnitHealthMax( "player" ), UnitGetTotalAbsorbs( "player" )
-                local count = ( 100 * ( health + absorbs ) / maxHealth ) < 70 and 1 or 0
+                -- the members (player included) below 70% health with their absorbs, each on its own
+                local count = ( 100 * ( UnitHealth( "player" ) + UnitGetTotalAbsorbs( "player" ) ) / max( 1, UnitHealthMax( "player" ) ) ) < 70 and 1 or 0
 
-                for i = 2, 5 do
+                for i = 1, 4 do
                     local token = "party" .. i
-                    if UnitExists( token ) and not UnitIsDeadOrGhost( token )then
-                        health = health + UnitHealth( token )
-                        maxHealth = maxHealth + UnitHealthMax( token )
-                        absorbs = absorbs + UnitGetTotalAbsorbs( token )
-
-                        if ( 100 * ( health + absorbs ) / maxHealth ) < 70 and 1 or 0 then count = count + 1 end
+                    if UnitExists( token ) and not UnitIsDeadOrGhost( token ) and ( 100 * ( UnitHealth( token ) + UnitGetTotalAbsorbs( token ) ) / max( 1, UnitHealthMax( token ) ) ) < 70 then
+                        count = count + 1
                     end
                 end
 
@@ -2589,24 +2641,14 @@ do
             if k == "action_cooldown" then return ability and ability.cooldown or 0
             elseif k == "cast_delay" then return 0
             elseif k == "cast_regen" then
-                local resType = class.primaryResource
-                local amount, resource
-
-                if ability then
-                    amount, resource = ability.spend
-
-                    if not resource and ability.spendType then
-                        resource = ability.spendType
-                    end
-                end
-
-                resType = resource or resType
+                local amount, resType = nil, class.primaryResource
+                if ability then amount, resType = state.SpendOf( ability ) end
 
                 local regen = t[ resType ].regen
                 if regen == 0.001 then regen = 0 end
 
                 if not amount then return t.gcd.execute * regen end
-                return ( max( t.gcd.execute, ability.cast or 0 ) * regen ) - ( ability.spend or 0 )
+                return ( max( t.gcd.execute, ability.cast or 0 ) * regen ) - amount
 
             elseif k == "cast_time" then return ability and ability.cast or 0
             elseif k == "charges" then return cooldown.charges
@@ -2621,8 +2663,9 @@ do
                 local c = ability.cost
                 if c then return c end
 
-                c = ability.spend
-                if c then c = ns.SpendPoints( c, t[ ability.spendType or class.primaryResource ], ability ) end
+                local r
+                c, r = state.SpendOf( ability )
+                if c then c = ns.SpendPoints( c, t[ r ], ability ) end
                 return c or 0
 
             elseif k == "crit_pct_current" or k == "crit_percent_current" then return ability and ability.critical or t.stat.crit
@@ -3726,9 +3769,25 @@ local mt_dot = {
 ns.metatables.mt_dot = mt_dot
 
 
-local one_sec_gcd = {
-    ROGUE = true,
-}
+-- The spell-kind GCD's floor: wowsims's GCDMin (sim/core/constants.go), after the GCD modifiers and the haste
+-- (cast.go GCDTime). The belief's I.GcdLen (Game/State/Families/Casts.lua GCD_FLOOR) keeps the same value;
+-- tests/Forever/gcd_rule_spec.lua pins the two together.
+local GCD_FLOOR = 1.0
+
+-- The class's own GCD kind (Hekili:NewClass `gcd`: a kind, or a function of the state), else the spell kind: a
+-- wait's, no ability's, and gcd.max's for an off-GCD ability.
+local function classKind()
+    local g = class.kit and class.kit.gcd
+    if type( g ) == "function" then g = g() end
+    return g == "totem" and "totem" or "spell"
+end
+
+-- The one GCD-length rule (gcd.execute and gcd.max): the totem kind 1 s; the spell kind 1.5 s x haste x the GCD
+-- modifiers in `ability`'s scope (aura audit C12), floored.
+local function gcdFor( ability, kind )
+    if kind == "totem" then return 1 end
+    return max( 1.5 * state.haste * ns.costMods.GcdMult( ability ), GCD_FLOOR )
+end
 
 local mt_gcd = {
     __index = function( t, k )
@@ -3738,18 +3797,10 @@ local mt_gcd = {
             -- We can specify this for any ability, if we want.
             if ability and ability.gcdTime then return ability.gcdTime end
 
-            local gcd = ( state.this_action == "wait" and "spell" ) or ( ability and ability.gcd or "spell" )
-
+            -- Forever E10: an ability's own kind in every power type; a 1 s ability declares gcd = "totem" (checkpoint G1)
+            local gcd = state.this_action ~= "wait" and ability and ability.gcd or classKind()
             if gcd == "off" then return 0 end
-            if gcd == "totem" then return 1 end
-
-            -- Forever E10: a spell-kind press keeps 1.5 s x haste in every power type; a 1 s ability declares gcd = "totem" (checkpoint G1).
-            if one_sec_gcd[ class.file ] then
-                return state.buff.adrenaline_rush.up and max( 0.75, state.haste ) or 1
-            end
-
-            -- a GCD modifier in scope (aura audit C12) before the floor, as wowsims applies it
-            return max( 1.5 * state.haste * ns.costMods.GcdMult( ability ), state.buff.voidform.up and 0.67 or 0.75 )
+            return gcdFor( ability, gcd )
 
         elseif k == "remains" then
             return state.cooldown.global_cooldown.remains
@@ -3758,12 +3809,11 @@ local mt_gcd = {
             return state.cooldown.global_cooldown.expires
 
         elseif k == "max" or k == "duration" then
-            if one_sec_gcd[ class.file ] or class.file == "DRUID" and UnitPowerType( "player" ) == Enum.PowerType.Energy then
-                return state.buff.adrenaline_rush.up and max( 0.75, state.haste ) or 1
-            end
-
+            -- execute's rule without its per-ability gcdTime: an off-GCD ability or a wait reads the class's kind
             local ability = state.this_action and class.abilities[ state.this_action ]
-            return max( 1.5 * state.haste * ns.costMods.GcdMult( ability ), state.buff.voidform.up and 0.67 or 0.75 )
+            local gcd = state.this_action ~= "wait" and ability and ability.gcd
+            if gcd ~= "spell" and gcd ~= "totem" then gcd = classKind() end
+            return gcdFor( ability, gcd )
 
         elseif k == "lastStart" then
             return 0
@@ -3866,32 +3916,6 @@ local resource_meta_functions = {}
 
 function state:AddResourceMetaFunction( name, f )
     resource_meta_functions[ name ] = f
-end
-
-
-function state:CombinedResourceRegen( t )
-    local regen = t.regen
-    if regen == 0.001 then regen = 0 end
-
-    local model = t.regenModel
-    if not model then return regen end
-
-    for _, source in pairs( model ) do
-        local value = type( source.value ) == "function" and source.value() or source.value
-        local interval = type( source.interval ) == "function" and source.interval() or source.interval
-
-        local aura = source.aura
-
-        if aura then
-            aura = source.debuff and state.debuff[ aura ] or state.buff[ aura ]
-
-            if aura.up then
-                regen = regen + ( value / interval )
-            end
-        end
-    end
-
-    return regen
 end
 
 -- The seconds until the pool reaches `amount`, on the estimate's stream, or on the floor's with `lo` (border batch 2:
@@ -4046,14 +4070,8 @@ local mt_resource = {
         elseif k == "max_nonproc" then
             return t.max -- need to accommodate buffs that increase mana, etc.
 
-        elseif k == "time_to_max" or k == "base_time_to_max" then
-            return state:TimeToResource( t, t.max )
-
-        elseif k == "time_to_max_combined" then
-            if not state.spec.assassination then return t.time_to_max end
-
-            -- Assassination, April 2021
-            -- Using the same as time_to_max because our time_to_max uses modeled regen events...
+        elseif k == "time_to_max" or k == "base_time_to_max" or k == "time_to_max_combined" then
+            -- time_to_max_combined: the same, since the forecast already holds the modelled regen events
             return state:TimeToResource( t, t.max )
 
         elseif k:sub(1, 16) == "time_to_deficit_" then
@@ -5551,9 +5569,10 @@ local mt_default_action = {
 
                 if c then return c end
 
-                c = ability.spend
+                local r
+                c, r = state.SpendOf( ability )
 
-                if c then c = ns.SpendPoints( c, state[ ability.spendType or class.primaryResource ], ability ) end
+                if c then c = ns.SpendPoints( c, state[ r ], ability ) end
 
                 return c or 0
             end
@@ -5561,13 +5580,8 @@ local mt_default_action = {
             return 0
 
         elseif k == "cost_type" then
-            local a, _ = ability.spendType
-            if type( a ) == "string" then return a end
-
-            a = ability.spend
-            if type( a ) == "function" then _, a = a() end
-            if type( a ) == "string" then return a end
-            return class.primaryResource
+            local _, r = state.SpendOf( ability )
+            return r
 
         elseif k == "in_flight" or k == "in_flight_to_target" then
             if ability.flightTime then
@@ -7073,15 +7087,8 @@ function state.GetResourceType( ability )
 
     if not action then return end
 
-    if action.spend ~= nil then
-        if type( action.spend ) == "number" then
-            return action.spendType or class.primaryResource
-
-        elseif type( action.spend ) == "function" then
-            return select( 2, action.spend() ) or action.spendType or class.primaryResource
-
-        end
-    end
+    local c, resource = state.SpendOf( action )
+    if c ~= nil then return resource end
 
     return nil
 end
@@ -7093,20 +7100,8 @@ ns.spendResources = function( ability )
     if not action then return end
 
     -- First, spend resources.
-    if action.spend ~= nil then
-        local cost, resource
-
-        if type( action.spend ) == "number" then
-            cost = action.spend
-            resource = action.spendType or class.primaryResource
-        elseif type( action.spend ) == "function" then
-            cost, resource = action.spend()
-            resource = resource or action.spendType or class.primaryResource
-        else
-            cost = cost or 0
-            resource = resource or "health"
-        end
-
+    local cost, resource = state.SpendOf( action )
+    if cost ~= nil then
         cost = ns.SpendPoints( cost, state[ resource ], action )
 
         -- a charged cost modifier's buff loses a stack when the declared cost is above 0, even at a discounted 0 (Engine/Schema/Races.lua)
@@ -7647,16 +7642,8 @@ ns.hasRequiredResources = function( ability )
     if not action then return end
 
     -- First, spend resources.
-    if action.spend and action.spend ~= 0 then
-        local spend, resource
-
-        if type( action.spend ) == "number" then
-            spend = action.spend
-            resource = action.spendType or class.primaryResource
-        elseif type( action.spend ) == "function" then
-            spend, resource = action.spend()
-        end
-
+    local spend, resource = state.SpendOf( action )
+    if spend and spend ~= 0 then
         if resource == "focus" or resource == "energy" then
             -- Thought: We'll already delay CD based on time to get energy/focus.
             -- So let's leave it alone.
@@ -7737,17 +7724,8 @@ function state:TimeToReady( action, pool )
         end
     end
 
-    local spend, resource = ability.spend
-    if spend then
-        if type( spend ) == "number" then
-            resource = ability.spendType or class.primaryResource
-        elseif type( spend ) == "function" then
-            spend, resource = spend()
-            resource = resource or ability.spendType or class.primaryResource
-        end
-
-        spend = spend or 0
-    end
+    local spend, resource = state.SpendOf( ability )
+    if spend == nil then resource = nil end -- no spend: no resource wait (a `readySpend` below included)
 
     if spend and resource then spend = ns.SpendPoints( spend, self[ resource ], ability ) end
 
@@ -7785,11 +7763,9 @@ function state:TimeToReady( action, pool )
     end
     if spend and z and z > wait then
         wait = max( wait, ceil( z * 100 ) / 100 )
-        -- a resource wait inside Output's READY (0.05 s) would show ready while the floor is still under the cost
-        -- (dim never promote, CN8 C1): shown one update later instead
-        -- shortcut: 0.05 is READY in three places (Engine/Output.lua's READY, tests/Game/harness/loop.lua's REACT, here);
-        -- change them together, or share one engine constant if a fourth reader appears
-        if wait <= 0.05 then wait = 0.06 end
+        -- a resource wait inside the ready margin (ns.READY, 0.05 s) would show ready while the floor is still under
+        -- the cost (dim never promote, CN8 C1): shown one update later instead
+        if wait <= ns.READY then wait = 0.06 end
         -- Forever (mana-regen plan, Task 4a): near its cost when the belief's estimate (the `current` stream) reaches
         -- the cost within EARLY_EXIT (at the estimate the pick would end the scan) while the floor reaches it within
         -- one more update (the usability poll that settles it; the client answers a gain late, so the floor runs a few
@@ -7801,7 +7777,7 @@ function state:TimeToReady( action, pool )
         -- further out, where the forecast is less settled (measured: the mark toggled, flicker and readyShort rose).
         z = self[ resource ]
         nearRes = not z.swingGen
-            and wait <= pre + ns.EARLY_EXIT + 0.2 -- the driver's combat update interval
+            and wait <= pre + ns.EARLY_EXIT + ns.UPDATE_INTERVAL
             and self:TimeToResource( z, spend ) <= pre + ns.EARLY_EXIT
         waitRes = wait
     end
@@ -7886,16 +7862,8 @@ function state:IsReady( action )
         return false
     end
 
-    if ability.spend then
-        local spend, resource
-
-        if type( ability.spend ) == "number" then
-            spend = ability.spend
-            resource = ability.spendType or class.primaryResource
-        elseif type( ability.spend ) == "function" then
-            spend, resource = ability.spend()
-        end
-
+    local spend, resource = state.SpendOf( ability )
+    if spend then
         if resource == "focus" or resource == "energy" or state.script.entry then
             local ttr = self:TimeToReady( action )
 

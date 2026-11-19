@@ -379,7 +379,11 @@ M.READY = {
     -- { 0.12, 4 } -> { 0.12, 3 } (0.9 batch, regen-read-09 89d1613b5: an equal out-of-combat energy read no longer
     -- reopens the closed band, L1341; bisected: green at d5186a639, red with regen-read-09 alone merged on it):
     -- shred at 4.75 late 0.234 -> in:grain; real 3 (early 1, late 2), median 0.118
-    druid_feral = { 0.12, 3 },
+    -- { 0.12, 3 } -> { 0.14, 4 } (re-pin e4ef929e54 -> ab0f00e4fc: wowsims #1087's flat list on the new log): real 4
+    -- (early 1, late 3), median 0.134: rake 2.00 early 1.00 (wowsims's slack after the 1 s GCD, as before), shred 13.79
+    -- late 0.07 and 163.63 late 0.134 (cost edges a poll late), shifting_power 75.64 late 0.53 (mana 686.6 against
+    -- the 684 cost: the belief's mana near cost, shared, the old 150.13 row's class)
+    druid_feral = { 0.14, 4 },
     -- { 0.54, 41 } -> { 2.50, 10 } (lane 14, replay world fix): a GCD now ends at its cast's log time plus the GCD (a
     -- late line of its timestamp ended it after the next GCD's rise, clearing the client's flag), so the 11 early
     -- GCD-chain rows are in grain; the 10 left are the late ones, so the median rises by the metric alone
@@ -413,7 +417,10 @@ M.READY = {
     -- Reaper 3.8 s, same talents and list): the same classes re-timed, all early (strider_kick slack 10, wing_clip
     -- aura 4 + slack 1, mongoose_bite aura 2 + slack 3, immolation_trap 2, strider_kick aura 1): the walk the replay
     -- cannot forecast and the omitted weave waits (CN19); the largest fell 2.80 -> 1.39, the middle rose
-    hunter_survival = { 0.41, 23 },
+    -- { 0.41, 23 } -> { 0.54, 22 } re-pin e4ef929e54 -> ab0f00e4fc (R6; the flipped log: +elixir 9179, the new gear): the
+    -- same walk classes re-timed, all early (strider_kick 11 max 0.67, mongoose_bite 6 max 2.64, wing_clip 3 max 1.17;
+    -- aura 13 + slack 22): the walk the replay cannot forecast and the omitted weave waits (CN19); the median rose
+    hunter_survival = { 0.54, 22 },
     -- wowsims's non-weave builds (owner 2026-11-12, ledger L661): first measurement (fixtures recorded once). Turrets:
     -- Serpent Sting early (the cast-anchored dot) and Arcane Shot cost rows; Survival Melee: wing_clip 2 (max 3.10),
     -- strider_kick 1
@@ -425,9 +432,17 @@ M.READY = {
     -- re-pin e5a9cd2a2d -> e4ef929e54 (R6, re-set to the measurement on the flipped logs, Pre-BiS gear): Marksmanship
     -- Turret { 0.43, 4 } -> { 0.15, 2 }, Survival Turret { 0.30, 5 } -> { 0.27, 2 }, Survival Melee { 0.41, 3 } ->
     -- { 0.23, 3 }
-    hunter_marksmanship_turret = { 0.15, 2 },
+    -- re-pin e4ef929e54 -> ab0f00e4fc (R6; the Turret builds gain mana consumables: brilliant mana oil, elixir of greater
+    -- intellect, major mana potion, 1 gear slot): Marksmanship Turret { 0.15, 2 } -> { 0.00, 0 }: the two cost-class late
+    -- rows (aimed_shot 52.48 0.92, arcane_shot 84.57 0.15) are gone (more mana: the cost crossings now in:cost); the
+    -- 64.57 Serpent Sting row (late 0.57, traced per tick in the fix round) was a harness gap: the worlds' Hunter knew the
+    -- Guide book's rank 9 (250, 220 under Efficiency 4/5) where wowsims's casts rank 8 (202.4), so the belief's wait ran
+    -- to 220; trainer-taught since (hunter_world.lua BOOK), it is in grain. Survival Turret { 0.27, 2 } holds; Survival Melee
+    -- { 0.23, 3 } -> { 0.17, 5 } (new talents, gear and Immolation Trap first: mongoose_bite 3 max 0.30, wing_clip 2 max
+    -- 0.16; early 2, late 3, median 0.161)
+    hunter_marksmanship_turret = { 0.00, 0 },
     hunter_survival_turret = { 0.27, 2 },
-    hunter_survival_melee = { 0.23, 3 },
+    hunter_survival_melee = { 0.17, 5 },
     -- { 0.47, 21 } -> { 0.76, 9 } re-pin e2842f0a78 (the new log): the 9 real rows late, cost class (gap BQ: lo reaches
     -- a cost after the truth), fire_blast 7 (max 0.76: the dry-mana waits on its 340)
     -- Re-pin e5a9cd2a2d -> e4ef929e54 (lane mage 0.9, R6; the new preraid gear's logs, with item-restores-09's Robe of
@@ -441,7 +456,9 @@ M.READY = {
     -- new line, item-restores mapping the Robe) at its log use.
     -- Arcane { 0.76, 9 } -> { 0.22, 2 }: fire_blast 110.70 / 128.80 late 0.22, cost class (gap BQ, lo 6.7 / 6.9 under
     -- the truth at Fire Blast's 340).
-    mage_arcane = { 0.22, 2 }, -- 0.220, 2 (ruling M13)
+    -- { 0.22, 2 } -> { 0.00, 0 } (re-pin e4ef929e54 -> ab0f00e4fc, lane repin-ab0f-mage, R6: the new preraid gear's log
+    -- re-times the fight): real 0, no late row
+    mage_arcane = { 0.00, 0 }, -- 0.000, 0
     -- { 0.37, 31 } -> { 0.45, 10 } re-pin e2842f0a78: cost class, scorch 10; the median is gap BQ's size, but the
     -- max 2.23 s rows sit about 50 mana under the truth, past BQ's ~0.4 s (untraced: an unseen Master of Elements
     -- refund is the candidate)
@@ -452,7 +469,24 @@ M.READY = {
     -- are credited), so at 146.60 truth 184.9 against est 121.3: Scorch waits on mana the player has);
     -- the same three before the restore credit, which moved scorch 42.00 (a 9.502 -> 0.001) and fire_blast 136.50
     -- (never -> in:grain at the Citrine's use, lo-truth -817.4 -> -42.4)
-    mage_fire = { 0.69, 3 }, -- 0.690, 3
+    -- { 0.69, 3 } -> { 0.25, 4 } (lane mage-mana-belief; the Mage world's spells carry the client's DB2 ranges, so a
+    -- travelling cast's flight window is 35 / 24 s, not the fake's 5 yd 0.36 s): the travelling crits' Master of
+    -- Elements refunds are credited (Fireball 5 and Pyroblast 2 of the log's 6 and 3; one Pyroblast DoT tick crit at
+    -- log 17.33 is credited too, which the game does not refund: in that instant the old DoT's tick Crit and the new
+    -- Pyroblast's direct Hit land, both school 4, and the new cast's flight ticket takes the crit row, a mis-routing;
+    -- a tick's own crit runs no onCrit since lane mage-mana-belief's fix, which moves no row here). 146.60
+    -- 1.61 late -> in:grain (lo-truth -73.7 -> -6.8), 152.40 0.69 -> 0.51; 172.90 / 177.50 in:cost -> 0.26 / 0.24 late
+    -- (gap BQ: lo 7.7 / 4.8 under the truth at Scorch's 150; before, est sat 15-24 OVER the truth there and showed
+    -- them in time); 159.40 / 166.20 stay in:cost (b 0.07 -> 0.19 / 0.16). Decisions 0.932 kept
+    -- { 0.25, 4 } -> { 0.23, 6 } (re-pin e4ef929e54 -> ab0f00e4fc, lane repin-ab0f-mage, R6): the new preraid gear
+    -- (wowsims #1085/#1090) wears 6 pieces of Sorcerer's Regalia (set 1671, was 3), whose 4-piece Sudden Insight
+    -- restores 200 mana (450554) at random on a cast (wowsims sim/common/forever/items_sets.go:155-165): not modelled
+    -- (random resource proc, owner L1396). scorch 115.80 3.52 late (lo -203.6: the proc at 115.71,
+    -- 0.01 s after the Scorch crit before it) and 114.20 0.72 (lo -15.7: the belief ran ~247 under from the proc at
+    -- 98.01 until the usable answer pulled lo up to Scorch's 150 at 105.70 against the truth's 161.8); 128.80, 160.70,
+    -- 170.10, 174.80 0.21-0.28 the cost-crossing edge (gap BQ, lo 4.9-5.8 under). The ambiguous-crit rule (e0804ba84)
+    -- moves no row (the same rows on the flip alone)
+    mage_fire = { 0.23, 6 }, -- 0.230, 6
     -- { 0.38, 31 } -> { 0.42, 9 } re-pin e2842f0a78: cost class (gap BQ), scorch 6 (max 1.39)
     -- { 0.42, 9 } -> { 1.51, 3 }: three late cost rows on the new log's dry pool (lo under the truth at the cost):
     -- frostfire_bolt 112.80 0.23 (lo -7.1, gap BQ), scorch 118.00 2.51 (lo -41.9 at Scorch's 150; traced, 0.9 measure
@@ -460,10 +494,16 @@ M.READY = {
     -- / 116.14, never credited: lo stays about 40 under until the usable answer), frostfire_bolt 141.10 1.51 (lo -32.8); the same three before the
     -- restore credit (only 141.10's est moved). 1.51 is the median over 3 rows; it rose because 6 rows closed (the
     -- restore credit), not because rows got worse
-    mage_frostfire = { 1.51, 3 }, -- 1.510, 3 (Task FFB, ruling M13)
+    -- { 1.51, 3 } -> { 0.39, 2 } (re-pin e4ef929e54 -> ab0f00e4fc, lane repin-ab0f-mage, R6: the new gear's log):
+    -- frostfire_bolt 131.80 0.56 (lo -17.0, est -4.1) and 167.50 0.39 (lo -13.0, est -1.6) late, cost class (gap BQ:
+    -- the regen band's lo under est after the five-second rule; traced at 131.80: the Sudden Insight deficit of 84.01
+    -- was gone by 120.7)
+    mage_frostfire = { 0.39, 2 }, -- 0.390, 2
     -- { 0.23, 3 } -> { 0.29, 3 }: frostbolt 132.00 / 157.30 late 0.29 (cost class, lo 8.3 / 8.1 under the truth),
     -- 179.20 0.16 (slack)
-    mage_frost = { 0.29, 3 }, -- 0.290, 3 (new pack 2026-11-12, R6 first measurement: frostbolt late, cost class)
+    -- { 0.29, 3 } -> { 0.23, 4 } (re-pin e4ef929e54 -> ab0f00e4fc, lane repin-ab0f-mage, R6: the new gear's log):
+    -- frostbolt 119.90 / 152.70 / 163.70 / 174.70 late 0.21-0.27, the cost-crossing edge (gap BQ, lo 7.4-8.6 under)
+    mage_frost = { 0.23, 4 }, -- 0.230, 4
     -- { 0.24, 5 } -> { 0.00, 0 } re-pin e5a9cd2a2d -> e4ef929e54 (the new log, the GCD-edge replay fix): real 0; the
     -- one late row left, judgement 154.44 (0.20 s, cost), is off the GCD
     paladin_holy_shock = { 0.00, 0 }, -- was { 0.24, 5 } (new pack 2026-11-12, R6 first measurement: cost and slack classes)
@@ -522,17 +562,17 @@ M.READY = {
     -- { 0.20, 14 } -> { 0.20, 13 } (0.9 batch, regen-read-09 89d1613b5: an equal out-of-combat energy read no longer
     -- reopens the closed band, L1341; bisected as druid_feral's): eviscerate at 7.00 late 0.18 -> in:cost 0.06
     -- (lo-truth -1.77 -> -0.30); real 13 (all late), median 0.200
-    rogue_assassination = { 0.20, 13 }, -- 0.28, 36 -> 0.20, 14 re-pin e5a9cd2a2d -> e4ef929e54: the gear change (four slots, Darkmantle out) re-times the log, the pack is logically unchanged; 78 timed, 14 real (all late; cost class)
+    rogue_assassination = { 0.33, 13 }, -- 0.20, 13 -> 0.33, 13 re-pin e4ef929e54 -> ab0f00e4fc: the new gear sets' random energy procs (Darkmantle 4-piece 27788 +20, Stormshroud 3-piece 23863 +30; unmodelled, owner L1396/L1397) are unseen energy gains, energy being secret; fixture re-recorded; 99 on-GCD, 98 timed, 13 real (all late, cost class), median 0.330; 0.28, 36 -> 0.20, 14 re-pin e5a9cd2a2d -> e4ef929e54: the gear change (four slots, Darkmantle out) re-times the log, the pack is logically unchanged; 78 timed, 14 real (all late; cost class)
     -- { 0.20, 18 } -> { 0.24, 20 } re-pin e2842f0a78: cost class; 6 of the 7 large rows follow a 27788 energize (6 in
     -- the new log, 2 in the old: 21.18, 56.26, 64.69, 65.49, 69.00, 83.96), the rest the floor's lag (gap BQ/CE)
     -- { 0.24, 20 } -> { 0.24, 21 } R42 (the replay answers fight_remains from the log): only rows that were
     -- "never" moved, now timed (176.62 eviscerate late 0.19 s)
-    rogue_combat = { 0, 0 }, -- 0.24, 21 -> 0, 0 re-pin e5a9cd2a2d -> e4ef929e54: the gear change (four slots, Darkmantle out) and the dropped 4-point Eviscerate branch re-time the log; 104 timed, no real row
+    rogue_combat = { 0.11, 6 }, -- 0, 0 -> 0.11, 6 re-pin e4ef929e54 -> ab0f00e4fc: the new gear sets' random energy procs (Darkmantle 4-piece 27788 +20, Stormshroud 3-piece 23863 +30; unmodelled, owner L1396/L1397) are unseen energy gains, energy being secret; fixture re-recorded; 108 timed, 6 real late, median 0.110: sinister_strike 159.43 cost class 1.68 s (lo-truth -51.5 after the 27788 at 159.39), sinister_strike 86.53 / 128.03 gcd class 0.92 / 0.63 s after a 23863 gain (85.83, 127.04); 0.24, 21 -> 0, 0 re-pin e5a9cd2a2d -> e4ef929e54: the gear change (four slots, Darkmantle out) and the dropped 4-point Eviscerate branch re-time the log; 104 timed, no real row
     -- 0.9 batch, floor unchanged: the 0.8.6 hotfix e405c8ae5 (bisected: the Rogue tip merged on 0ca856b0b green, on
     -- cb3214b4a red, on e405c8ae5 itself red; not split by the hotfix's parts, stealth state or avoid undo) moves the
     -- 136.25 vanish (off-GCD) never -> late 0.50; its garrote stays in:grain (b -0.05 -> 0.00, predicted a 0 -> 0.50);
     -- real 5 (late 5), median 0.070
-    rogue_subtlety = { 0.07, 5 }, -- 0.17, 40 -> 0.07, 5 re-pin e5a9cd2a2d -> e4ef929e54: the gear change (four slots, Darkmantle out) and the Hemorrhage energy term re-time the log (Death Mark shuts Eviscerate); 98 timed, 5 real late (hemorrhage 3, death_mark 2); 0.20, 45 -> 0.15, 32 -> 0.17, 40 (gap CE): as rogue_assassination, a mark inside the ready wait
+    rogue_subtlety = { 0.11, 5 }, -- 0.07, 5 -> 0.11, 5 re-pin e4ef929e54 -> ab0f00e4fc: the new gear sets' random energy procs (Darkmantle 4-piece 27788 +20, Stormshroud 3-piece 23863 +30; unmodelled, owner L1396/L1397) are unseen energy gains, energy being secret; fixture re-recorded; 106 timed, 5 real late (hemorrhage 2, ghostly_strike 1, rupture 1, +1), median 0.110; 0.17, 40 -> 0.07, 5 re-pin e5a9cd2a2d -> e4ef929e54: the gear change (four slots, Darkmantle out) and the Hemorrhage energy term re-time the log (Death Mark shuts Eviscerate); 98 timed, 5 real late (hemorrhage 3, death_mark 2); 0.20, 45 -> 0.15, 32 -> 0.17, 40 (gap CE): as rogue_assassination, a mark inside the ready wait
     -- { 0.21, 7 } -> { 0.71, 16 } re-pin e2842f0a78 (lane 15, R6): the build's own list (Magma and Windfury Totems,
     -- Fire Nova the filler at 375, Skyborne); 85 decisions, 16 real (10 early, 6 late); by class cooldown 15, cost 9, gcd 43
     -- { 0.71, 16 } -> { 0.38, 34 } 0.7 re-pin (e5a9cd2a2dfc, lane shaman, R6, owner ruling option b, reversible): 92
@@ -564,7 +604,11 @@ M.READY = {
     -- with Searing Totem's 2.425 s cadence, the resist constant 8L + 19 and the Weakness Analyzer's 6 min cooldown (one
     -- use): 90 decisions, 2 real, both late lightning_bolt (104.93 cost class, lo 2.3 under the truth; 176.89 the
     -- fight's end), median 1.220
-    shaman_elemental = { 1.22, 2 },
+    -- { 1.22, 2 } -> { 1.49, 3 } re-pin e4ef929e54 -> ab0f00e4fc (lane repin-ab0f-shaman, R6): the new build (gear, imbue
+    -- 20750, distance 20, 180 s / 1 target) and its list (Fire Nova above Elemental Mastery, Chain Lightning `mana.pct_lo>40`
+    -- only): 98 decisions, 3 real, all late lightning_bolt: 115.94 and 120.40 the cost class (lo 1.9 and 2.0 under the
+    -- truth, as 104.93 at the old pin), 176.89 the fight's end as before; median 1.490
+    shaman_elemental = { 1.49, 3 },
     -- 1.000, 18 (Warlock lane, Task 13; first clean run on 5d62f44c+): Shadow Bolt's 2.5 s cast, the next icon ready
     -- at the GCD's end inside it (Shadow's Mind Flay likewise). Count 18 -> 21 on fix 31 (06eec227): G4 keeps
     -- Corruption believed, so 12 more decisions are shown (never 22 -> 10), 3 of them a Shadow Bolt's early 1.0 s.
@@ -629,7 +673,12 @@ M.READY = {
     -- instant; the belief read 25-30 against 29.7), 99.90 (1.32, a swing's rage between two polls) and 142.09 (0.20).
     -- The old log's 57.00-104.50 rows left with the new log's re-timing and the GCD-edge fix (not split per row); the
     -- median rises because the small rows left, no row grew
-    warrior_fury = { 1.12, 5 },
+    -- -> { 0.17, 9 } (re-pin e4ef929e54 -> ab0f00e4fc, R6): 101 decisions, 9 real, all late; the new log's (wowsims's
+    -- rage rules #1069/#1099 re-time the fight): the old kit reads the same 9 at median 0.17 on it. Cost waits with the
+    -- belief 4.7-17.2 under the log's rage at wowsims's cast (the old rows' class): Bloodthirst 26.40 (1.45), 98.30
+    -- (0.13), 105.10 (0.64), Sunder Armor 44.00 (0.99), 46.40 (0.17), Execute 168.82 (1.70); GCD edges 0.07-0.17:
+    -- Reckless Swings 112.30, Sunder Armor 129.80, Death Wish 151.27
+    warrior_fury = { 0.17, 9 },
     -- { 0.38, 11 } -> { 0.37, 3 } re-pin e2842f0a78 (lane 14, R6; after 5049ede22's GCD fix): 98 decisions, 3 real, all
     -- early, class aura: Shield Slam 49.84 (0.24), Sunder Armor 71.77 / 143.44 (0.37 / 0.44): wowsims queues Shield Block
     -- (`Queueing up 2565 to cast at`) and casts the on-GCD ability at that instant, after ours shows it ready
@@ -639,7 +688,12 @@ M.READY = {
     -- real, all late, each a gain from a hit taken (or its block's +5) inside the poll before wowsims's cast: Rend 11.23
     -- (0.81; 6.6 < 7 until the 11.14 partial block), Shield Slam 30.43 (0.81), 49.62 and 61.62 (0.41), Sunder Armor
     -- 71.22 and Revenge 171.19 (0.41); the new log's Pre-BiS gear and 770 healing re-time the hits (the old log had 4)
-    warrior_protection = { 0.41, 6 },
+    -- -> { 0.48, 12 } (re-pin e4ef929e54 -> ab0f00e4fc, R6): 98 decisions, 12 real (11 late, 1 early); the new log's
+    -- (wowsims's rage rules #1069/#1099 re-time the hits): the old kit reads the same 12 at median 0.48 on it. Cost waits
+    -- with the belief 0.7-19.7 under the log's rage at wowsims's cast: Revenge 18.44 and 68.74, Sunder Armor 23.23,
+    -- 88.42 and 153.22 (1.00), Shield Slam 49.54, 71.14 and 92.74 (0.48), Rend 143.22 (0.41), Sunder Armor 116.24 early
+    -- (0.34); GCD edges: Shield Slam 64.44 (0.19), Sunder Armor 158.12 (1.00)
+    warrior_protection = { 0.48, 12 },
 }
 
 --- The ready-time check of replay `R` (timing.lua) on spec `spec` after its run: prints "<label> wowsims timing:

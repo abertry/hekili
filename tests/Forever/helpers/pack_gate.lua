@@ -106,7 +106,14 @@ M.FLICKER = {
     -- refundNowOnAvoid; seeds 1-20 / 21-40 / 41-60 flicker 0.18 / 0.34 / 0.49 (oracle 0.65 / 0.61 / 0.70), retracted
     -- 0.07 / 0.04 / 0, readyShort 15 / 2 / 5, heldReady 156 / 169 / 171): tightened to the measurement, flicker 0.56 ->
     -- 0.51 (the measured worst + 0.01), readyShort 26 -> 15, heldReady 228 -> 171; retracted kept
-    ["Fury L60"] = { flicker = 0.51, flickerK = 0.6, retracted = 0.21, readyShort = 15, heldReady = 171 }, -- 0.85 / 0.84 / 0.54, 0.07 / 0.00 / 0.06
+    -- re-pin ab0f: UW 59.5% x 1 rage rolled per hit (wowsims) + HS/Cleave Reckless charge (R6, the world rolling
+    -- Unbridled Wrath from its own stream, eb63112ff; seeds 1-20 / 21-40 / 41-60 flicker 0.18 / 0.30 / 0.26 (oracle
+    -- 0.67 / 0.48 / 0.40), retracted 0.07 / 0.04 / 0, readyShort 2 / 6 / 5, heldReady 226 / 197 / 229): tightened to the
+    -- measurement, flicker 0.51 -> 0.31 (the measured worst + 0.01), readyShort 15 -> 6; heldReady 171 -> 229: the old
+    -- world paid no Unbridled Wrath while the kit credited it, so the belief ran ahead of truth; truth now pays it and
+    -- the belief's floor counts no unseen proc (strikeNow's gain spread = the amount; owner: no optimistic procs), so
+    -- truth covers a cost before our floor more often (lo-truth at cost -1.1 -> -1.4); retracted kept
+    ["Fury L60"] = { flicker = 0.31, flickerK = 0.6, retracted = 0.21, readyShort = 6, heldReady = 229 }, -- flicker 0.18 / 0.30 / 0.26, retracted 0.07 / 0.04 / 0 (ab0f, rolled)
     -- Fury L24's flicker up with a named cause (2026-11-01): the loop client's answer for Overpower was always no (a
     -- log-only aura) while presses ran on the dodge row; it now follows the world's window, which reorders the fights.
     -- Same world without Warrior.lua's client read: 0.90 / 1.08 / 0.83. Flips are mostly not Overpower; the mechanism is untraced.
@@ -156,7 +163,21 @@ M.FLICKER = {
     -- another boot clock (seeds 6, 9, 14, 15, 17, 20 alone on a fresh boot read the same before and after ab8ad0acc;
     -- seed 11 alone 30 -> 14, ab8ad0acc moving that fight directly); the gap-as-09 / avoid-refund-09 merges (field off reads the same) moves seed 1, the boot's
     -- first fight, 21 -> 22 (an Execute held at 102.80)
-    ["Fury L24"] = { flicker = 0.30, flickerK = 0.6, retracted = 0.2, readyShort = 0, heldReady = 377 }, -- 0.46 / 0.52 / 1.25, 0.06 / 0.06 / 0.16; 53 / 47 / 47, 406 / 328 / 260
+    -- re-pin ab0f: UW 59.5% x 1 rage rolled per hit (wowsims) + HS/Cleave Reckless charge (R6, the world rolling
+    -- Unbridled Wrath from its own stream, eb63112ff; seeds 1-20 / 21-40 / 41-60 flicker 0.35 / 0.26 / 0.23 (oracle
+    -- 0.71 / 0.61 / 0.47), retracted 0, readyShort 0, heldReady 484 / 547 / 617; the lane's base b7c26392f read flicker
+    -- 0.20 / 0.29 / 0.25, heldReady 377 / 282 / 363): flicker 0.30 -> 0.36 (the measured worst + 0.01), traced (seeds
+    -- 1-20, 12 flips over 33.8 min): 7 with the oracle flipping too (5 the queued Heroic Strike cycle: pressed at w0.00,
+    -- queued next poll so a long wait shows, back at the swing, e.g. seed 9 t=69.20-69.60; 2 the fight's own), 5 ours
+    -- alone (3 the swing row a poll behind truth at a cost edge, e.g. seed 5 t=4.20: truth 7.79 -> 17.05 at a landed
+    -- swing, lo 5.50 with the swing pending, rend shown for one poll over sunder_armor, the row lands at 4.40, lo 15.23;
+    -- 2 a near-tie at the usability pin, lo 9.99 against rend's 10). Both classes pre-exist; the richer truth rage
+    -- (Unbridled Wrath now paid, in 1-rage steps, plus the strike's charge) brings more Heroic Strike casts and more
+    -- cost-edge crossings. heldReady 377 -> 617: the old world paid no Unbridled Wrath while the kit credited it, so
+    -- the belief ran ahead of truth; truth now pays it and the belief's floor counts no unseen proc (strikeNow's gain
+    -- spread = the amount; owner: no optimistic procs), so truth covers a cost before our floor (lo-truth at cost -0.9
+    -- -> -1.6 / -2.1 / -2.2, est-truth +0.3 / -0.3 / -0.2): true waits of the floor
+    ["Fury L24"] = { flicker = 0.36, flickerK = 0.6, retracted = 0.2, readyShort = 0, heldReady = 617 }, -- flicker 0.35 / 0.26 / 0.23, retracted 0 / 0 / 0 (ab0f, rolled)
     -- none -> floored (gap CI, 2026-10-31; seeds 1-20 / 21-40 / 41-60, measured after the Warrior world resolved every
     -- rank of a kit addition and Revenge's window reached the client (review C1: the world tests the swing's target by
     -- guid, the observer's answers see a proxy of us); oracle flicker 0.42 / 0.42 / 0.45, gap 0.32 / 0.15 / 0.12 under K;
@@ -198,7 +219,14 @@ M.FLICKER = {
     -- ours and the oracle both count it and show the icon at 0.00, and the loop presses before the world resolves the swing
     -- (truth 2.95 / 0.86 before the press; lo 2.13 / 1.99): a same-instant press-order tie in the harness, not a rage
     -- error (refused cost 0.1, unmatched 0.0). Seed 59 alone reads 0 (the mob's swings fall at .69, off the poll grid)
-    ["Warrior Protection"] = { flicker = 0.14, retracted = 0.1, readyShort = 2, heldReady = 351 }, -- 0.62 / 0.64 / 0.54, 0 / 0.03 / 0.02
+    -- re-pin ab0f: UW 59.5% x 1 rage rolled per hit (wowsims) + HS/Cleave Reckless charge (R6, the world rolling
+    -- Unbridled Wrath from its own stream, eb63112ff; seeds 1-20 / 21-40 / 41-60 flicker 0.12 / 0.12 / 0.02 (oracle
+    -- 0.42 / 0.50 / 0.59), retracted 0, readyShort 0 / 0 / 0, heldReady 402 / 310 / 335; the lane's base b7c26392f
+    -- read 349 / 270 / 320): flicker 0.14 -> 0.13 (the measured worst + 0.01); heldReady 351 -> 402, every set up: the old world
+    -- paid no Unbridled Wrath while the kit credited it (est-truth at cost +0.8), so the belief ran ahead of truth and
+    -- hid held ticks; truth now pays it (est-truth +0.3 / +0.5 / +0.4) and the belief's floor counts no unseen proc
+    -- (strikeNow's gain spread = the amount; owner: no optimistic procs): true waits of the floor
+    ["Warrior Protection"] = { flicker = 0.13, retracted = 0.1, readyShort = 0, heldReady = 402 }, -- flicker 0.12 / 0.12 / 0.02, retracted 0 / 0 / 0 (ab0f, rolled)
     -- 1.1 -> 1.3 (gap CE; seeds 1-20 / 21-40 / 41-60: 1.20 / 1.24 / 1.10, was 0.82 / 1.05 / 0.81; oracle 1.42 / 1.70 / 1.25):
     -- the mark on a floor inside the ready wait gives back part of the near-tie gain to close dim never promote (refused
     -- 0.8 / 1.6 / 1.5 -> 0, agreement .970 / .969 / .958 -> .973 / .971 / .971); under base's 1.23 / 1.44 / 1.16 on every
@@ -236,7 +264,11 @@ M.FLICKER = {
     -- combo point on a builder's crit, Predatory Discipline's Bite, Shifting Power, Ferocity 5/5's Rake 35); at seeds
     -- 1-20 the round 2 world read flicker 0.02, heldReady 426. Flicker row NOT moved: the owner's hold at 0.03 (L660
     -- (b)); seeds 1-20's 0.04 is red for the owner (both flips traced in repin-druid-09-6.md; green with steady-hold-09, ledger L1328)
-    ["Feral"] = { flicker = 0.03, retracted = 0, heldReady = 326 }, -- 0.56 / 0.89 / 0.56, 0
+    -- re-pin e4ef929e54 -> ab0f00e4fc: wowsims #1087 (repin-ab0f-druid; seeds 1-20 / 21-40 / 41-60 flicker 0.00 / 0.00 /
+    -- 0.00 (oracle 0.00 / 0.02 / 0.04), retracted 0 / 0 / 0, readyShort 0 / 0 / 0, heldReady 309 / 336 / 314, agreement
+    -- .981 / .989 / .982): heldReady 326 -> 336 (the worst set). Cause: #1087's flat Feral list; A/B on one tree (the tip
+    -- with the e4ef Feral .simc + make packs), seeds 21-40: old list 321, new list 336
+    ["Feral"] = { flicker = 0.03, retracted = 0, heldReady = 336 }, -- 0.56 / 0.89 / 0.56, 0
     -- CN8 (D2 + S + C1, R6; seeds 1-20 / 21-40 / 41-60 flicker 0 / 0 / 0, readyShort 0 / 0 / 0, heldReady 133 / 125 / 136):
     -- flicker 0.1 -> 0 (S, steady icons on by default)
     -- regen phase lane, cause harness: seeded random regen phase per fight (ledger L667) (R6; seeds 1-20 / 21-40 /
@@ -255,6 +287,8 @@ M.FLICKER = {
     -- flicker 0 / 0 / 0, retracted 0 / 0 / 0, readyShort 0 / 0 / 0, agreement .997 / .997 / .998): heldReady 200 -> 189,
     -- cause not proven: likely mana-09 (043d29b57: the Innervate entry's regen = 5, druid_loop_world.lua:37 / :404, and CN22's percent-cost
     -- rounding), not the re-pin (the Balance .simc changed only its header); likely, not A/B'd
+    -- re-pin e4ef929e54 -> ab0f00e4fc (repin-ab0f-druid; the Balance .simc moved only its header): seeds 1-20 / 21-40 /
+    -- 41-60 every cell identical (heldReady 189 / 174 / 174, flicker 0 / 0 / 0, agreement .997 / .997 / .998)
     ["Balance"] = { flicker = 0, retracted = 0, heldReady = 189 }, -- 0.03 / 0.05 / 0.07, 0
     -- none -> floored (gap CH, 2026-10-31, measured on d7b972d76 at seeds 1-20 / 21-40 / 41-60; oracle flicker 0.30 /
     -- 0.37 / 0.21): the swing-paid rage class (a forecast swing's gain shows Lacerate or Primal Bite ready; retracted
@@ -302,7 +336,13 @@ M.FLICKER = {
     -- readyShort 0 / 0 / 0, heldReady 423 / 411 / 410, agreement .908 / .924 / .907): heldReady 420 -> 423, bisected to gap-as-09
     -- (the swing-avoid give-back, which the Druid lane did not carry), mechanism not traced (no held tick read): the
     -- Druid merge e98ef8506 reads 423, the same minus gap-as's src + harness diff 420; steady-hold-09 moves flicker 0.28 -> 0.26 (its own A/B)
-    ["Guardian"] = { flicker = 0.35, retracted = 0, readyShort = 0, heldReady = 423 }, -- 0.77 / 0.91 / 1.03, 0.35 / 0.54 / 0.60
+    -- re-pin e4ef929e54 -> ab0f00e4fc: wowsims #1087 (repin-ab0f-druid; seeds 1-20 / 21-40 / 41-60 flicker 0.29 / 0.28 /
+    -- 0.24 (oracle 0.09 / 0.04 / 0.10), retracted 0 / 0 / 0, readyShort 0 / 0 / 0, heldReady 450 / 381 / 412, agreement
+    -- .900 / .912 / .914): heldReady 423 -> 450 (the worst set). Cause: #1087's Guardian list; the A/B proves the #1087
+    -- list as a whole (its diff: Enrage under Lacerate's cost, no 5-stack Lacerate refresh line; the old Swipe line
+    -- needs 2+ enemies, so it cannot act in the one-mob loop); A/B on one tree (the tip with the e4ef Guardian .simc +
+    -- make packs), seeds 1-20: old list 423 (flicker 0.26), new list 450 (0.29). Flicker row unchanged (worst 0.29)
+    ["Guardian"] = { flicker = 0.35, retracted = 0, readyShort = 0, heldReady = 450 }, -- 0.77 / 0.91 / 1.03, 0.35 / 0.54 / 0.60
     -- regen phase lane, cause harness: seeded random regen phase per fight (ledger L667) (R6; seeds 1-20 / 21-40 /
     -- 41-60 flicker 0.00 / 0.00 / 0.00, retracted 0.00 / 0.00 / 0.00, readyShort 0 / 0 / 0, heldReady 159 / 156 / 150):
     -- heldReady 329 -> 159
@@ -425,7 +465,22 @@ M.FLICKER = {
     -- rapid_fire 11 / 13 / 13: Rapid Fire behind an Aimed Shot whose 310 is paid at the cast's end waits from the
     -- belief's floor at a fight-opening pool no read has pinned (t 8.6: lo 381.9, (100 - (lo - 310)) / 21.15 = 1.33
     -- s; the oracle's exact 430.6 covers both; central, repin-hunter-09-3): the worst set
-    ["Beast Mastery Turret"] = { flicker = 0, retracted = 0, heldReady = 237 }, -- heldReady 125 / 128 / 118; after L667 121 / 111 / 127
+    -- re-pin e4ef929e54 -> ab0f00e4fc (Hunter lane; seeds 1-20 / 21-40 / 41-60, retracted 0, readyShort 0 each, flicker 0
+    -- but Survival's; the worst set of the three): the worlds take the new logs' pools and regen (turret builds 3750 mana
+    -- and 15.40 mp5, was 3330 and 12.40: the builds' mana consumables and one gear slot; Survival Melee 3915 and 12.00,
+    -- was 3270 and 12.40; Survival 3975, was 3555), Survival Melee's off hand 1.3 s and bow 2.4 s; then (fix round) the
+    -- worlds' Hunter trainer-taught as wowsims's (hunter_world.lua BOOK: Serpent Sting rank 8's 230, was rank 9's 250),
+    -- which re-times every pool. BM Turret 237 -> 249 (234 / 235 / 249), flicker 0 (the lane's pre-fix 0.017 a set, seed
+    -- 13's aimed_shot -> arcane_shot -> aimed_shot at 9.0 s, traced: a 0.14 s Aimed-mana / Arcane-cooldown tie under the
+    -- belief's lo 4 mana short; gone on the trainer-rank pool), Marksmanship Turret 213 -> 218 (218 / 218 / 211), Survival
+    -- Turret 236 -> 279 (246 / 270 / 279), Survival Melee 361 -> 290 (280 / 285 / 290); Survival holds (flicker .017 /
+    -- .033 / .067, oracle .133 / .200 / .283, heldReady 92 / 93 / 71, under 0.11 and 112). The held ticks, classified per
+    -- tick (fix round, the worst sets): BM 41-60, 248 of 249 at truth within 5 mana of the cost, 247 shown under 0.3 s
+    -- late (summon_hawk 170, arcane_shot 66, serpent_sting 9, aimed_shot 3, hunters_mark 1): the near-cost edge (the
+    -- secret pool's lower bound a few mana under the truth at the crossing); Survival Turret 41-60, 263 of 279 the same
+    -- edge (arcane_shot 258, hunters_mark 5), 16 rapid_fire at truth 60+ over the cost, 12 of them 3 s+ late: the unpinned
+    -- fight-opening floor (repin-hunter-09-3, below)
+    ["Beast Mastery Turret"] = { flicker = 0, retracted = 0, heldReady = 249 }, -- heldReady 125 / 128 / 118; after L667 121 / 111 / 127
     -- Marksmanship Turret, 0.8.5 close (ledger L1132, measured on integ/0.8.5-w2 fa22dc2ad; seeds 1-20 / 21-40 / 41-60
     -- heldReady 132 / 115 / 108, flicker 0 / 0 / 0, retracted 0 / 0 / 0, readyShort 0 / 0 / 0): heldReady 118 -> 132
     -- (the worst set). Cause harness: ladder-usable-085 cc02f47e5's between-fight rest window (fights start at the true
@@ -437,7 +492,7 @@ M.FLICKER = {
     -- flicker 0, retracted 0, readyShort 0, agreement .998 / .999 / .995). Traced per tick (seeds 1-20): the near-cost
     -- edge, arcane_shot 199 at mana 166-169 against its 166.32 (our est a few mana under truth, the oracle's wait 0),
     -- hunters_mark 2; the smaller pool sits at the edge more often: the worst set
-    ["Marksmanship Turret"] = { flicker = 0, retracted = 0, heldReady = 213 }, -- heldReady 101 / 116 / 104; after L667 118 / 102 / 101 (116 -> 118, cause harness)
+    ["Marksmanship Turret"] = { flicker = 0, retracted = 0, heldReady = 218 }, -- heldReady 101 / 116 / 104; after L667 118 / 102 / 101 (116 -> 118, cause harness)
     -- heldReady 117 -> 236 (re-pin e5a9cd2a2d -> e4ef929e54, repin-hunter-09 fix round 1: the world's pool and regen
     -- from its log, 3330 mana, 12.40 mp5 + 17.50 spirit, Resourcefulness's 50% share while casting (was 5000 and
     -- spirit 15.88, no mp5); seeds 1-20 / 21-40 / 41-60 heldReady 210 / 236 / 186, flicker 0, retracted 0, readyShort
@@ -447,14 +502,14 @@ M.FLICKER = {
     -- lo 352.2, (100 - (lo - 310)) / 12.40 = 4.67 s; the oracle's exact 513.3 covers both; central, repin-hunter-09-3);
     -- 1 is untraced (fight 15 at t 8.80, 3.23 s at truth 101; plausibly the same unpinned floor, not shown); 2 are near-cost edge
     -- ticks (0.09 s, 0.07 s): the worst set
-    ["Survival Turret"] = { flicker = 0, retracted = 0, heldReady = 236 }, -- heldReady 115 / 117 / 106; after L667 104 / 103 / 105
+    ["Survival Turret"] = { flicker = 0, retracted = 0, heldReady = 279 }, -- heldReady 115 / 117 / 106; after L667 104 / 103 / 105
     -- heldReady 183 -> 361 (re-pin e5a9cd2a2d -> e4ef929e54, repin-hunter-09 fix round 1: the world's pool and regen
     -- from its log, 3270 mana, 12.40 mp5 + 16.75 spirit (was 5000 and spirit 15.88, no mp5); seeds 1-20 / 21-40 /
     -- 41-60 heldReady 346 / 342 / 361, flicker 0 (oracle 0.13 / 0 / 0.02), retracted 0, readyShort 0, agreement .992 /
     -- .995 / .996). Traced per tick (seeds 1-20): the near-cost edge, wing_clip 301 at mana 80-83 against its 80,
     -- mongoose_bite 37, hunters_mark 8 (cooldowns and Hunter's Mark equal in ours, the oracle and the world): the worst
     -- set
-    ["Survival Melee"] = { flicker = 0, retracted = 0, heldReady = 361 }, -- heldReady 166 / 183 / 177; after L667 173 / 169 / 174
+    ["Survival Melee"] = { flicker = 0, retracted = 0, heldReady = 290 }, -- heldReady 166 / 183 / 177; after L667 173 / 169 / 174
     -- 0.1 -> 0.9 (Task 7; seeds 1-20 / 21-40 / 41-60: 0.47 / 0.88 / 0.77, was 0.04 / 0 / 0.02; oracle 0.66 / 1.23 / 1.01):
     -- wowsims's logged regen (Ret 8.25/s casting) runs the world at an empty mana pool; the oracle's flicker rose too; our
     -- extra disagreement is gap AB (lo = 0 at an empty pool vs truth ~16: Judgement vs Holy Strike); controller ruling
@@ -737,7 +792,13 @@ M.FLICKER = {
     -- the world's mana and regen from the e4ef929e54 log (5950 / 26.31 / 31.31 / 45.62, was 5650 / 26.13 / 31.13 /
     -- 45.25; repin-shaman-09 fix round 1, R6; seeds 1-20 / 21-40 / 41-60 flicker 0 / 0 / 0, retracted 0, readyShort 0 / 0
     -- / 0, heldReady 277 / 290 / 300, agreement .997 / .997 / .997), the same after the mana-09 merge: floors unchanged
-    ["Elemental"] = { flicker = 0, retracted = 0, heldReady = 300, readyShort = 0 }, -- 0.00 / 0.00 / 0.00, 0
+    -- heldReady 300 -> 308 re-pin e4ef929e54 -> ab0f00e4fc (lane repin-ab0f-shaman, R6; seeds 1-20 / 21-40 / 41-60
+    -- flicker 0 / 0 / 0, retracted 0, readyShort 0 / 0 / 0, heldReady 288 / 308 / 297): re-pin; causes not separated
+    -- by an A/B. Candidates: the world's mana 6295 and regen 13.25 / 26.85 from the new log, the Lightning Overload roll
+    -- of Elemental Focus (more Clearcasting, so seeded fights reorder) and the new list (Fire Nova above Elemental
+    -- Mastery, Chain Lightning only above 40% mana); the worst set is 21-40 (cost crossings, lo under the truth at the
+    -- threshold, as before)
+    ["Elemental"] = { flicker = 0, retracted = 0, heldReady = 308, readyShort = 0 }, -- 0.00 / 0.00 / 0.00, 0
     -- 0.4 -> 0 (Task 10, a paid channel holds the five-second rule's casting rate to its end; seeds 1-20 / 21-40 / 41-60:
     -- 0 / 0 / 0, was 0 / 0.32 / 0.02): Wrack's 6 s paid channel no longer resumes the spirit part 5 s in, so the mana
     -- estimate stops running ahead of truth at its end, where Life Tap and Wrack were a near-tie (agreement .993 -> .996
@@ -767,7 +828,10 @@ M.FLICKER = {
     -- regen phase lane, cause harness: seeded random regen phase per fight (ledger L667) (R6; seeds 1-20 / 21-40 /
     -- 41-60 flicker 0.02 / 0.00 / 0.02, retracted 0.00 / 0.00 / 0.00, readyShort 0 / 0 / 0, heldReady 5 / 3 / 1):
     -- flicker 0.03 -> 0.02
-    ["SM Ruin"] = { flicker = 0.02, retracted = 0, heldReady = 5 }, -- 0.02 / 0 / 0, 0
+    -- re-pin e4ef929e54 -> ab0f00e4fc (R6; the five Orc builds, the world's pools and regen seeds; seeds 1-20 / 21-40 /
+    -- 41-60 flicker 0.017 / 0 / 0.033 (the oracle's the same), retracted 0, heldReady 2 / 1 / 1, readyShort 0): heldReady 5 -> 2
+    -- flicker 0.02 -> 0.033 (seeds 41-60, the oracle's the same 0.033: the worst of the three sets)
+    ["SM Ruin"] = { flicker = 0.033, retracted = 0, heldReady = 2 }, -- 0.017 / 0 / 0.033, 0
     -- CN8 (D2 + S + C1, R6; seeds 1-20 / 21-40 / 41-60 flicker 0 / 0 / 0, readyShort 0 / 0 / 0, heldReady 0 / 2 / 0):
     -- flicker 0.1 -> 0 (S, steady icons on by default)
     -- 0.7 re-pin (R6; seeds 1-20 / 21-40 / 41-60 flicker 0 / 0 / 0, readyShort 0 / 0 / 0, heldReady 0 / 0 / 0): heldReady 4 -> 0
@@ -783,7 +847,10 @@ M.FLICKER = {
     -- regen phase lane, cause harness: seeded random regen phase per fight (ledger L667) (R6; seeds 1-20 / 21-40 /
     -- 41-60 flicker 0.00 / 0.00 / 0.00, retracted 0.00 / 0.00 / 0.00, readyShort 0 / 0 / 0, heldReady 11 / 11 / 10):
     -- heldReady 7 -> 11
-    ["Shadow Brand"] = { flicker = 0, retracted = 0, heldReady = 11 }, -- 0 / 0 / 0, 0
+    -- re-pin e4ef929e54 -> ab0f00e4fc (R6; seeds 1-20 / 21-40 / 41-60 flicker 0 / 0 / 0, heldReady 10 / 18 / 21, readyShort 0):
+    -- heldReady 11 -> 21 (traced: the held ticks are Searing Pain waiting 0.11 s at an exact Demonic Brand remains =
+    -- 2.500 s boundary tie (remains<2.5); no Life Tap or mana hold; oracle flicker 0)
+    ["Shadow Brand"] = { flicker = 0, retracted = 0, heldReady = 21 }, -- 0 / 0 / 0, 0
     -- the excess over the oracle (0 / 0 / 0) is at Conflagrate's and Shadowburn's cooldown ends, as Fire's Fire Blast
     -- (the not-ready flag's CD_PROBE, central). 0.4 -> 0.2 (Task 10b, gap CQ: the flag keeps a modelled end the GCD or a
     -- hard cast covers; 0.13 / 0.17 / 0.07, was 0.23 / 0.40 / 0.25; agreement .995 / .992 / .996); the rest is the probe
@@ -807,7 +874,10 @@ M.FLICKER = {
     -- regen phase lane, cause harness: seeded random regen phase per fight (ledger L667) (R6; seeds 1-20 / 21-40 /
     -- 41-60 flicker 0.02 / 0.00 / 0.00, retracted 0.00 / 0.00 / 0.00, readyShort 0 / 0 / 0, heldReady 0 / 0 / 0):
     -- flicker 0.03 -> 0.02, heldReady 3 -> 0
-    ["Destruction"] = { flicker = 0.02, retracted = 0, heldReady = 0 }, -- 0.02 / 0.00 / 0.02, 0
+    -- re-pin e4ef929e54 -> ab0f00e4fc (R6; Orc build, pool 5323, Spirit 170; seeds 1-20 / 21-40 / 41-60 flicker 0 / 0 / 0,
+    -- heldReady 1 / 1 / 0, readyShort 0, agreement .999): heldReady 0 -> 1, one tick of 18020: Corruption held one 0.20 s poll
+    -- at seed 15, 47.2 s (not mana; cause untraced)
+    ["Destruction"] = { flicker = 0.02, retracted = 0, heldReady = 1 }, -- 0 / 0 / 0, 1
 }
 -- Our first-icon flicker at most the oracle shadow's plus K, every gated 20-fight loop: the widest measured gap rounded
 -- up to the next 0.1. It tightens the bar when a change lowers the oracle's own flicker. 1.8 -> 0.5 (forever-gap-bd,

@@ -23,9 +23,9 @@ local json = require("dkjson")
 local M = {}
 
 --- The two wowsims/forever commits of the per-spec pin (docs/dev/wowsims-packs.md "Moving the pin"): OLD, the pin every
---- spec still sits at (the 0.7 re-pin's, e5a9cd2a2d), and NEW, the re-pin's target (e4ef929e54, pin 3). Each has its
+--- spec still sits at (the 0.9 re-pin's, e4ef929e54), and NEW, the re-pin's target (ab0f00e4fc, pin 4). Each has its
 --- oracle patch set in tools/wowsims/sim-pin/<first 12 hex>/.
-local OLD, NEW = "e5a9cd2a2dfc9e29e63fd6ec1fc7245ad4b44664", "e4ef929e54794ea16dc9a3c4b4f9d4688d500679"
+local OLD, NEW = "e4ef929e54794ea16dc9a3c4b4f9d4688d500679", "ab0f00e4fc83cdede13ba8a184f2a384b8efa3ab"
 M.OLD_PIN, M.NEW_PIN = OLD, NEW
 --- The commit each spec's recipe, request and log come from (its checkout and oracle CLI;
 --- tests/Forever/wowsims_pin_spec.lua). A class lane flips its spec by re-exporting it at NEW and changing its own

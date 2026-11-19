@@ -59,10 +59,10 @@ end
 describe("a wowsims pack's absolute mana threshold on a small pool (rule 22)", function()
     -- Warlock: the cooldowns list's Life Tap, Shadow Bolt after it (any line below a quiet Life Tap)
     for _, p in ipairs({
-        { "Affliction", 6277, 1800 }, -- the kit's pool: tests/Forever/wowsims/warlock_affliction.log
-        { "Destruction", 5503, 2600 }, -- warlock_destruction.log
-        { "Demonology", 6328, 2600 }, -- warlock_demonology.log
-        { "ShadowBrand", 6328, 2600 }, -- warlock_shadow_brand.log
+        { "Affliction", 6311, 1800 }, -- the kit's pool: tests/Forever/wowsims/warlock_affliction.log
+        { "Destruction", 5323, 2600 }, -- warlock_destruction.log
+        { "Demonology", 6121, 2600 }, -- warlock_demonology.log
+        { "ShadowBrand", 6294, 2600 }, -- warlock_shadow_brand.log
     }) do
         local name, kit, n = p[1], p[2], p[3]
         local function at(max)
@@ -83,10 +83,10 @@ describe("a wowsims pack's absolute mana threshold on a small pool (rule 22)", f
         end)
     end
 
-    -- Feral: Innervate in Cat Form at low energy, in melee (re-pin e4ef929e54: single_target's line)
+    -- Feral: Innervate in Cat Form at low energy, in melee (re-pin ab0f00e4fc: the one default list's line)
     local function innervate(max)
         local C = dlw.Feral
-        local text = line("Druid", "Feral (wowsims.com)", "actions.single_target+=/innervate")
+        local text = line("Druid", "Feral (wowsims.com)", "actions+=/innervate")
         assert.is_truthy(text:find("mana.lo<1400", 1, true), text)
         return engine(C.character(), "Feral (wowsims.com)", text, max, 3)
     end
