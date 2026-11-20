@@ -4,36 +4,80 @@
 
 ### New
 
-- Italian translation of the core interface, thanks to Sairiin.
-- Simplified Chinese: Cooldowns now reads 爆发 where it means burst abilities, and the sequence options are translated (thanks to dodoels).
-- A new wiki page, APL Conditions On Forever, lists which priority conditions work on Forever, which are estimated or
-  limited, and what to write instead, such as `mana.pct_lo` for `mana.pct`.
-
 ### Changed
-- Feral: the default priority follows wowsims's simplified Feral priority: one priority at every enemy count, with new energy points for Shifting Power and Ferocious Bite.
-- Guardian: the default priority follows wowsims's simplified Bear priority: one priority at every enemy count, and Swipe is no longer suggested.
-- In a custom condition, `gcd` on its own now means the full global cooldown (`gcd.max`), as it already did in an
-  imported priority.
-- Elemental Shaman: the default priority follows wowsims's newest Elemental build: Fire Nova comes before Elemental Mastery, Chain Lightning is cast only above 40% mana, and Earth Shock on Revelation no longer waits for a single target.
-- Hunter: Survival Melee follows wowsims's new build (new talents and gear; Immolation Trap is now the first melee shot and it drinks a Major Mana Potion again). Not yet checked in game.
-- Guardian and Protection Warrior priorities no longer include health-based defensive suggestions (your health is hidden from addons in combat); custom priorities that check your health get a warning on the Warnings page.
 
 ### Fixed
-- Warrior: Unbridled Wrath now counts its measured 60% chance per swing and 1 rage per proc with a two-hander too, and Heroic Strike and Cleave now count the Unbridled Wrath and Reckless Swings rage they give.
-- Fire and Frostfire Mage: the mana estimate is less likely to count a Master of Elements refund for a critical hit
-  that came from Fireball's or Pyroblast's burn rather than a spell, which could show a spell as affordable too early.
-  A Fire spell's critical hit that lands at the same moment as one of those burns no longer counts its refund, so the
-  next spell can show a moment late.
-- A separate Cooldowns, Interrupts or Defensives display whose Forecast Period is longer than the Forecast window
-  (Performance) now recommends an ability whose resources arrive within that period, instead of treating it as not
-  ready.
-- At very high spell haste, the icons after the first no longer come up a little early: a global cooldown is never
-  shorter than 1 second.
-- Dominos users no longer get repeated Lua errors when Hekili reads keybindings before all action bars or buttons exist.
 
 ### Known issues
 
 ### Upgrade notes
+
+## v0.11.0
+
+_Released 2026-11-20_
+
+This release adds German, Spanish and French translations, makes Warrior rage timing more careful, and polishes several options screens.
+
+### Warrior
+- Rage-costing abilities, such as Fury's Bloodthirst, no longer count Unbridled Wrath rage from a white swing before it procs, so they may light up a moment later, once the rage is certain.
+
+### Core and display
+- New German translation (machine-assisted; native speakers are welcome to suggest fixes on GitHub).
+- New Spanish translation for Spain and Latin America (machine-assisted; native speakers are welcome to suggest fixes on GitHub).
+- New French translation (machine-assisted; native speakers are welcome to suggest fixes on GitHub).
+- A critical tick late in one of your damage-over-time spells is no longer mistaken for a critical hit of the spell you just cast when that damage-over-time spell was applied instantly or its first hit was a critical hit. Crit-based effects such as Master of Elements' mana refund are no longer counted when they did not happen.
+- As a side effect of that fix, a real critical hit that lands at the same moment as such a tick is no longer counted either, so your next spell can show as ready a moment late.
+- Custom conditions that check how long until the target reaches a health percentage now read 3600 when the target's time to die is unknown, the same as other unknown times (they read 2520).
+- The snapshot help text now suggests an enemy in the open world instead of training dummies, which Forever does not have.
+- The Require Toggle dropdown in the ability list now shows the toggle's name (for example "Cooldowns") in its "Default" entry.
+- Action Lists: an entry's Description and Conditions now come first, with its Caption, Label and Icon settings below them under Display.
+- The Copy Priority button now uses the same copy icon as the note above it.
+- The Cooldown Manager Reset button is wider, so longer translated labels fit.
+
+### Known issues
+- Fire and Frostfire Mage: after a travelling spell's first hit that was not critical, a late critical tick of its damage-over-time effect can still be counted as a critical hit of your next spell, so a Master of Elements refund may be counted that did not happen.
+
+## v0.10.0
+
+_Released 2026-11-19_
+
+Hekili Forever v0.10.0 updates several default priorities to the newest wowsims builds, corrects rage and mana estimates for Warriors and Fire Mages, and adds an Italian translation.
+
+### Druid
+- Feral: the default priority now follows wowsims's simplified Feral priority, with one priority at every enemy count and new energy thresholds for Shifting Power and Ferocious Bite.
+- Guardian: the default priority now follows wowsims's simplified Bear priority, with one priority at every enemy count, and Swipe is no longer suggested.
+- Guardian: Barkskin and Frenzied Regeneration are no longer suggested based on your health, because the game hides your health from addons in combat.
+
+### Hunter
+- Survival (Melee): the default priority follows wowsims's new build with new talents and gear. Immolation Trap is now the first melee shot, and Major Mana Potion is suggested again. This build has not yet been checked in game.
+
+### Mage
+- Fire and Frostfire: the mana estimate no longer counts a Master of Elements refund for a critical tick from Fireball's or Pyroblast's burn, which could show a spell as affordable too early.
+- Fire and Frostfire: a Fire spell's critical hit that lands at the same moment as a Fireball or Pyroblast burn tick no longer counts its refund, so the next spell can show as ready a moment late.
+
+### Shaman
+- Elemental: the default priority follows wowsims's newest build. Fire Nova comes before Elemental Mastery, Chain Lightning is suggested only above 40% mana, and Earth Shock on Revelation is suggested at any number of targets.
+
+### Warlock
+- Affliction: the default priority now suggests a Major Mana Potion, as wowsims's priority does.
+
+### Warrior
+- Unbridled Wrath now counts a 60% chance per swing and 1 rage per proc with every weapon, including two-handers, which used to count 2 rage.
+- Heroic Strike and Cleave now count the rage they give from Unbridled Wrath and Reckless Swings.
+- Protection: health-based defensives such as Last Stand, Shield Wall and Healthstone are no longer suggested, because the game hides your health from addons in combat.
+
+### Core and display
+- New Italian translation of the core interface, thanks to Sairiin.
+- Simplified Chinese: Cooldowns now reads 爆发 where it means burst abilities, and the sequence options are translated, thanks to dodoels.
+- A custom priority that checks your own health now shows a warning on the Warnings page, because that check never passes in combat.
+- In a custom condition, `gcd` on its own now means the full global cooldown, as it already did in an imported priority.
+- Custom priorities: `group_health` now averages you and party members 1 to 4, and `at_risk` now counts only members below 70% health instead of every living member.
+- A separate Cooldowns, Interrupts or Defensives display now recommends an ability whose resources arrive within its Forecast Period, even when that period is longer than the Forecast window under Performance.
+- At very high spell haste, the icons after the first no longer appear slightly early, because the global cooldown is never shorter than 1 second.
+- Dominos users no longer get repeated Lua errors when Hekili reads keybindings before all action bars and buttons exist.
+
+### Upgrade notes
+- A copy of the Guardian or Protection Warrior priority made before this version keeps its health-based defensive lines. They never pass in combat and show a warning on the Warnings page.
 
 ## v0.9.0
 
@@ -94,6 +138,8 @@ Hekili Forever v0.9.0 follows the newest wowsims.com rotations for most classes,
 - Simplified Chinese: the Cooldown Manager panel, overlays, Action Bar Glow and wowsims priority names are now translated.
 ### Known issues
 - Warrior, Arms and Fury: Blackhand's Breadth, used in wowsims's latest gear sets, is not suggested yet.
+### Known issues
+
 ### Upgrade notes
 - A priority list named `windows` is now reserved for window declarations. A custom priority with an ordinary list of that name shows an error on that list until you rename it.
 
@@ -484,6 +530,8 @@ Hekili Forever 0.7.0 picks some Druid, Mage and Warlock priorities from your tal
 - Fury Warriors: the rage from Reckless Swings is counted the moment you cast it.
 - Subtlety Rogues: Death Mark's payout and Boot Knife's chance of a combo point aren't counted yet.
 
+### Known issues
+
 ### Upgrade notes
 - Update Hekili together with its class addons. A mismatched pair loads no priorities and says "update the older one".
 - Druids: if you chose Feral yourself on 0.6.2 and have all three points of Thick Hide, you may be switched to Guardian at first login without a notice. Press "Activate Feral" on the Feral spec page once and your choice stays.
@@ -609,6 +657,8 @@ This release updates most wowsims.com priorities to wowsims as it was on 2 Novem
 - Warlock: after a Demonic Rune or Major Mana Potion, Life Tap may show for up to 40 s even though your mana is high.
 - In dungeons and raids, only one enemy is counted, so AoE abilities are not recommended there.
 - A display can occasionally fail to build and stay blank; the cause is still being investigated.
+
+### Known issues
 
 ### Upgrade notes
 - In custom or imported priorities, `energy.current` and `mana.pct` now give the addon's best estimate. Use `energy.lo` or `mana.pct_lo` for the old cautious reading.
@@ -790,6 +840,8 @@ v0.3.0 adds the Warlock and Priest with default priorities, an Elemental Shaman 
 - A priority updated on the same day no longer shows as reverted when you log in.
 - Built-in priorities no longer show a Delete button.
 
+### Known issues
+
 ### Upgrade notes
 - Saved or imported priorities that set a pre-pull timing now ignore it without a warning. Their pre-pull lines follow the new show-while-needed rule.
 
@@ -862,6 +914,8 @@ Hekili Forever v0.2.0 makes priorities translated from wowsims.com the default f
 - Hunter: Multi-Shot rarely appears if you never walk into melee, and Beast Mastery and Marksmanship use the same list. The defaults never suggest Aimed Shot, Sniper Shot or Summon Hawk.
 - Shaman: there is no weapon-imbue reminder. The mana potion, Demonic Rune and Fire Nova lines are always on and use estimated mana, and Fire Nova is expected to cost 520 mana where wowsims.com uses 375.
 - Every fight is treated as a long one: Feral's end-of-fight Ferocious Bite and the Rogue end-of-fight lines never show, and Rip can be suggested on a mob that dies first.
+
+### Known issues
 
 ### Upgrade notes
 - Update the core addon (Hekili) together with its class addons. A mismatched pair loads no priorities and says "update the older one".

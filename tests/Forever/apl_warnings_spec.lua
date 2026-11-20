@@ -27,12 +27,20 @@ describe("APL secret-token scan", function()
         assert.are.same({
             "health.pct",
             "your health is hidden in combat",
-            "this line never passes in combat",
+            "your health reads full in combat, so a low-health check never passes there",
         }, { scan("(health.pct<35)") })
         for _, hp in ipairs({ "health.current<5000", "health.deficit>5000", "health.percent>50", "health.actual<9" }) do
             assert.are.equal(hp:match("^[%a.]+"), scan("buff.spender_c.up&" .. hp), hp)
         end
         assert.are.equal("target.health.pct", scan("target.health.pct<20&health.pct<50")) -- target rows first
+    end)
+
+    it("finds a bare `health`, not health.max or a longer name", function()
+        assert.are.equal("health", scan("health<5000"))
+        assert.are.equal("health", scan("buff.spender_c.up&!(health>10)"))
+        assert.is_nil(scan("health.max>5"))
+        assert.is_nil(scan("target.health<5"))
+        assert.is_nil(scan("health_regen>5"))
     end)
 
     it("finds a token in a target_if expression", function()
