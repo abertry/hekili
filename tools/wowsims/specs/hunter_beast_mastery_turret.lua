@@ -34,7 +34,10 @@ return {
         multi_shot = { 8, 35 },
         serpent_sting = { 8, 35 },
     },
-    condition = { multi_shot = "target.outside8" },
+    condition = {
+        aimed_shot = "active_enemies=1&target.outside8&!moving",
+        multi_shot = "target.outside8",
+    },
     guard = {
         hunters_mark = "active_enemies=1",
         multi_shot = "active_enemies>1",
@@ -42,10 +45,6 @@ return {
     },
     extra = {
         { before = "multi_shot", line = "summon_hawk,if=active_enemies=1&action.summon_hawk.known&pet.hawk.count<2" },
-        {
-            before = "multi_shot",
-            line = "aimed_shot,if=active_enemies=1&target.outside8&!moving",
-        },
         { after = "multi_shot", line = "volley,if=active_enemies>1&target.outside8&!moving" },
         { after = "volley", line = "arcane_shot,if=target.outside8" },
     },

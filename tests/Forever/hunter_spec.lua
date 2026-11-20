@@ -909,6 +909,19 @@ describe("Forever Hunter priorities", function()
             end
         end
     end)
+
+    it("gates the only Beast Mastery Turret Aimed Shot while moving", function()
+        local entries = require("Forever.helpers.pack_entries").flat(
+            packs["Beast Mastery Turret (wowsims.com)"].lists.default
+        )
+        local aimed = {}
+        for _, e in ipairs(entries) do
+            if e.action == "aimed_shot" then
+                aimed[#aimed + 1] = e.criteria
+            end
+        end
+        assert.are.same({ "active_enemies=1&target.outside8&!moving" }, aimed)
+    end)
 end)
 
 -- Through the real engine (headless.lua): a Hunter who knows the whole kit.
