@@ -31,7 +31,9 @@ return {
     ranges = {
         arcane_shot = { 8, 35 },
         aimed_shot = { 8, 35 },
+        mongoose_bite = { 0, 5 },
         multi_shot = { 8, 35 },
+        raptor_strike = { 0, 5 },
         serpent_sting = { 8, 35 },
     },
     condition = {
@@ -44,6 +46,8 @@ return {
         serpent_sting = 'active_enemies=1&target.creature_type!="elemental"&target.creature_type!="mechanical"',
     },
     extra = {
+        { before = "aimed_shot", line = "raptor_strike,use_off_gcd=1,if=target.within5" },
+        { before = "aimed_shot", line = "mongoose_bite,if=target.within5" },
         { before = "multi_shot", line = "summon_hawk,if=active_enemies=1&action.summon_hawk.known&pet.hawk.count<2" },
         { after = "multi_shot", line = "volley,if=active_enemies>1&target.outside8&!moving" },
         { after = "volley", line = "arcane_shot,if=target.outside8" },
